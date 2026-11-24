@@ -23,4 +23,4 @@ Any block that runs over is reported immediately (see CLAUDE.md).
 | Block | Planned | Started | Ended | Notes |
 |---|---|---|---|---|
 | 0–1 Scaffold + deploy | 60 min | 2026-11-23 19:13 | 2026-11-23 19:32 | ~20 min wall clock; on time |
-| 1–3 RAG + guardrail + eval | 120 min | 2026-11-23 19:38 | | |
+| 1–3 RAG + guardrail + eval | 120 min | 2026-11-23 19:38 | 2026-11-23 20:03 | on time; deployed and verified live |
