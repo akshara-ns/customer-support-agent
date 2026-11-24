@@ -38,6 +38,9 @@ export interface TurnDeps {
   actionChecker?: ActionChecker;
 }
 
+/** Streamed before the first tool runs when the model gave no preamble (claim-free by construction). */
+export const ACKNOWLEDGMENT = "One moment while I check that. ";
+
 const FALLBACK: Record<string, string> = {
   llm_timeout: "Sorry, the assistant took too long to respond.",
   llm_rate_limited: "Sorry, the assistant is busy right now.",
@@ -151,6 +154,9 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
         s.output({ toolCalls: t.toolCalls.map((c) => ({ name: c.name, arguments: redact(c.arguments) })), text: redact(t.content.slice(0, 500)) });
         return t;
       });
+
+      // First text fast: a tool turn with no preamble gets a short, claim-free acknowledgment before tools run.
+      if (turn.toolCalls.length > 0 && toolChoice !== "none" && steps === 0 && !reply.trim()) say([ACKNOWLEDGMENT]);
 
       if (turn.toolCalls.length === 0 || toolChoice === "none") {
         go("checking_claims");
