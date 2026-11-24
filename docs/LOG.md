@@ -278,3 +278,34 @@ What was done, what was tried and dropped, problems found, AI use.
 
 **AI use**
 - Claude Code (Opus) implemented and tested the fixes, ran the A/B and scenario runs, and the live checks in the built-in browser (voice via test clips).
+
+## 2026-11-24 · Pre-10B fixes A–C and Phase 10B: evidence (started 01:02)
+
+**Done**
+- A: invoice guard (D71), reproduced first, scenario S7.
+- B: error spans and real voice durations.
+- C: tidy-ups.
+- Confirmation rule for in-code escalation (D72), after S7 run 3.
+- Labelling convention (D74).
+- Clopper–Pearson intervals and the evidence summary.
+- Attribution corrected (D73): abstention catches near-misses; the threshold is a pre-filter.
+- 3-level confidence (D75), validated on 40 blind items plus an 18-item harder set (committed before running).
+- Scenarios 35/35, pass^5 7/7 on frozen code.
+- README: evidence, limits, 100× traffic, next steps.
+- Tests 182 → 197.
+
+**Findings**
+- HIGH is not shown to be more accurate than MEDIUM at 95% (20/21 vs 7/10, intervals overlap).
+- The harder set misses 3/9 escalations: two approval demands and one partly covered question.
+- The grounding checker caught 1 of 20 blind escalations.
+
+**Problems found**
+- A heredoc tripped the shell safety check twice; reran the same edits from script files.
+- `bridge.ts` mixed two items' changes; split before committing.
+
+**Cost**
+- About $0.20 in API calls this phase (scenario runs $0.14 + $0.05, held-out and harder runs about $0.03).
+
+**AI use**
+- Claude Code (Opus) did the fixes, the evals and the answer-correctness labels. The labels are by the assistant, not a human, and are documented as such.
+

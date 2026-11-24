@@ -144,3 +144,14 @@ Also found while doing this: the scenario runner's `--repeat` parsing (Phase 7) 
 - The first final-grounding version escalated tool turns on harmless paraphrases (scenarios 12/18); narrowed.
 - The live check found the handoff trimmed away its own ticket number; fixed, with a test.
 - v2 held-out re-run: FE 2/15, ME 0/15. One flip (v11, Free "version history", `answer_declined`). Over three runs v11 escalated twice: answer-model variance, not an API error from the retry change.
+
+## Before Phase 10B: three follow-ups (2026-11-24)
+
+| # | Item | Reproduced by | Fix | Status |
+|---|---|---|---|---|
+| A | Wrong-invoice refund (asked about inv_2001, model refunded inv_2002) | `tests/invoice-match.test.ts`, 4 failing first | D71; 7 tests; scenario S7 (5/5) | **Fixed** (voice: mismatch only, against transcripts logged so far) |
+| B | Tool spans "ok" on tool errors; voice spans 0 ms | Tests failing first | Error spans carry the error code; realtime responses and the claim check record real durations | **Fixed** |
+| C | Stale comment, deprecated alias, duplicated serializer, `ModelError.transient` | — | Tidied, no behaviour change (suite unchanged) | **Fixed** |
+
+Phase 10B evidence work: labelling convention (D74), intervals everywhere (`eval:evidence`), attribution corrected (D73), 3-level confidence validated (D75; HIGH vs MEDIUM not separated at 95%), harder set v3 run once (FE 1/9, ME 3/9), scenarios 35/35 with pass^5 7/7 on frozen code.
+
