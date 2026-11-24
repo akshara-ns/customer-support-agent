@@ -2,10 +2,12 @@ import { z } from "zod";
 import { RATE_LIMITS } from "@/lib/config";
 import { openAIAgentModel } from "@/lib/agent/openai-model";
 import { runTurn } from "@/lib/agent/run";
+import { FAULTS, runWithFault } from "@/lib/faults";
+import { errorResponse, log, newRequestId } from "@/lib/log";
+import { persistTrace } from "@/lib/observability/pg-traces";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { pgEventStore } from "@/lib/session/pg-store";
-import { customerDirectory } from "@/lib/tools/customers";
-import { guardedPolicySearch, pgLedger, pgTickets } from "@/lib/tools/pg-stores";
+import { productionToolDeps } from "@/lib/voice/deps";
 import type { AgentEvent, SseEvent } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -13,6 +15,8 @@ export const maxDuration = 60;
 const Body = z.object({
   sessionId: z.uuid(),
   message: z.string().trim().min(1).max(2000),
+  /** Demo failure simulation for this one turn. */
+  simulate: z.enum(FAULTS).optional(),
 });
 
 /**
@@ -20,44 +24,56 @@ const Body = z.object({
  * Errors inside the turn become `error` events plus a graceful reply; the stream always ends with `done`.
  */
 export async function POST(request: Request): Promise<Response> {
+  const requestId = newRequestId(request);
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return Response.json({ error: "invalid_request", message: "Expected { sessionId: uuid, message: string }." }, { status: 400 });
+    return errorResponse(400, "invalid_request", "Expected { sessionId: uuid, message: string (1-2000 chars) }.", requestId);
   }
+  const { sessionId, message, simulate } = parsed.data;
   try {
     const limit = await consumeLimits(request, [...RATE_LIMITS.chat]);
     if (!limit.allowed) return rateLimitedResponse(limit);
   } catch (err) {
-    console.error("rate limit check failed", err);
-    return Response.json({ error: "unavailable", message: "Service temporarily unavailable." }, { status: 503 });
+    log.error("rate limit check failed", { requestId, sessionId }, err);
+    return errorResponse(503, "unavailable", "Service temporarily unavailable.", requestId);
   }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let seq = 0;
+      let closed = false;
       const send = (e: AgentEvent) => {
+        if (closed) return;
         const numbered: SseEvent = { ...e, seq: ++seq };
-        controller.enqueue(encoder.encode(`event: ${e.type}\ndata: ${JSON.stringify(numbered)}\n\n`));
+        try {
+          controller.enqueue(encoder.encode(`id: ${seq}\nevent: ${e.type}\ndata: ${JSON.stringify(numbered)}\n\n`));
+        } catch {
+          closed = true; // client went away; the turn still finishes and is logged
+        }
       };
+      const t0 = Date.now();
       try {
-        const now = new Date();
-        await runTurn(
-          { sessionId: parsed.data.sessionId, message: parsed.data.message, channel: "chat" },
-          {
-            model: openAIAgentModel(),
-            events: pgEventStore,
-            tools: { customers: customerDirectory(now), ledger: pgLedger, tickets: pgTickets, policy: guardedPolicySearch, now: () => now },
-          },
-          send,
+        const summary = await runWithFault(simulate, () =>
+          runTurn(
+            { sessionId, message, channel: "chat" },
+            {
+              model: openAIAgentModel(),
+              events: pgEventStore,
+              tools: productionToolDeps(),
+              traceSink: (trace, channel) => persistTrace(sessionId, trace, channel),
+            },
+            send,
+          ),
         );
+        log.info("chat turn", { requestId, sessionId, turnId: summary.turnId, state: summary.state, tools: summary.toolsCalled, ms: Date.now() - t0, simulate });
       } catch (err) {
         // runTurn handles model and tool failures itself; this is the last resort (e.g. DB down).
-        console.error("chat turn crashed", err);
+        log.error("chat turn crashed", { requestId, sessionId, simulate }, err);
         send({ type: "error", code: "internal", message: "Something went wrong on our side. Please try again.", retryable: true });
         send({ type: "done", turnId: "", state: "failed", totals: { durationMs: 0, tokensIn: 0, tokensOut: 0, costUsd: 0 } });
       } finally {
-        controller.close();
+        if (!closed) controller.close();
       }
     },
   });
@@ -68,23 +84,30 @@ export async function POST(request: Request): Promise<Response> {
       "Cache-Control": "no-store, no-transform",
       Connection: "keep-alive",
       "X-Accel-Buffering": "no",
+      "x-request-id": requestId,
     },
   });
 }
 
 /** GET /api/chat?sessionId=… → the visible transcript (user/assistant messages, tickets) for reloads. */
 export async function GET(request: Request): Promise<Response> {
+  const requestId = newRequestId(request);
   const id = z.uuid().safeParse(new URL(request.url).searchParams.get("sessionId"));
-  if (!id.success) return Response.json({ error: "invalid_request" }, { status: 400 });
-  const events = await pgEventStore.list(id.data);
-  type Line = { seq: number; channel: string; role: "user" | "assistant" | "ticket"; text: string; interrupted?: boolean };
-  const transcript = events.flatMap(({ seq, channel, event }): Line[] => {
-    if (event.type === "user_message") return [{ seq, channel, role: "user", text: event.text }];
-    if (event.type === "assistant_message") return [{ seq, channel, role: "assistant", text: event.text, interrupted: event.interrupted }];
-    if (event.type === "escalation" && event.ticket) {
-      return [{ seq, channel, role: "ticket", text: `${event.ticket.ticketNumber} (${event.ticket.priority})` }];
-    }
-    return [];
-  });
-  return Response.json({ sessionId: id.data, transcript }, { headers: { "Cache-Control": "no-store" } });
+  if (!id.success) return errorResponse(400, "invalid_request", "sessionId must be a UUID.", requestId);
+  try {
+    const events = await pgEventStore.list(id.data);
+    type Line = { seq: number; channel: string; role: "user" | "assistant" | "ticket"; text: string; interrupted?: boolean };
+    const transcript = events.flatMap(({ seq, channel, event }): Line[] => {
+      if (event.type === "user_message") return [{ seq, channel, role: "user", text: event.text }];
+      if (event.type === "assistant_message") return [{ seq, channel, role: "assistant", text: event.text, interrupted: event.interrupted }];
+      if (event.type === "escalation" && event.ticket) {
+        return [{ seq, channel, role: "ticket", text: `${event.ticket.ticketNumber} (${event.ticket.priority})` }];
+      }
+      return [];
+    });
+    return Response.json({ sessionId: id.data, transcript }, { headers: { "Cache-Control": "no-store", "x-request-id": requestId } });
+  } catch (err) {
+    log.error("transcript failed", { requestId, sessionId: id.data }, err);
+    return errorResponse(503, "unavailable", "Transcript temporarily unavailable.", requestId);
+  }
 }

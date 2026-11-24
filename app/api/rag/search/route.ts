@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { GUARDRAILS, RATE_LIMITS } from "@/lib/config";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
+import { errorResponse, log, newRequestId } from "@/lib/log";
 import { answerWithGuardrails } from "@/lib/guardrails/pipeline";
 import { TIERS } from "@/lib/types";
 
@@ -17,13 +18,11 @@ const Query = z.object({
 });
 
 export async function GET(request: Request): Promise<Response> {
+  const requestId = newRequestId(request);
   const params = Object.fromEntries(new URL(request.url).searchParams);
   const parsed = Query.safeParse(params);
   if (!parsed.success) {
-    return Response.json(
-      { error: "invalid_query", issues: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) },
-      { status: 400 },
-    );
+    return errorResponse(400, "invalid_request", parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "), requestId);
   }
   const { q, tier, answer } = parsed.data;
 
@@ -59,7 +58,7 @@ export async function GET(request: Request): Promise<Response> {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (err) {
-    console.error("rag/search failed", err);
-    return Response.json({ error: "search_failed", message: "Retrieval is temporarily unavailable." }, { status: 503 });
+    log.error("rag search failed", { requestId }, err);
+    return errorResponse(503, "unavailable", "Retrieval is temporarily unavailable.", requestId);
   }
 }

@@ -62,6 +62,6 @@ export function rateLimitedResponse(r: LimitResult): Response {
         : "Too many requests. Please wait a moment and try again.",
       retryAfterSec: r.retryAfterSec,
     },
-    { status: 429, headers: { "Retry-After": String(r.retryAfterSec) } },
+    { status: 429, headers: { "Retry-After": String(r.retryAfterSec), "Cache-Control": "no-store" } },
   );
 }
