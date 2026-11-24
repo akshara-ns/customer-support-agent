@@ -14,6 +14,12 @@ const LABELS: Record<Voice["state"], string> = {
   error: "Error",
 };
 
+const ACTIVITY: Record<Voice["activity"], string> = {
+  listening: "Listening",
+  thinking: "Thinking…",
+  speaking: "Speaking",
+};
+
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 export function VoiceBar({ voice, allowClips = false }: { voice: Voice; allowClips?: boolean }) {
@@ -22,6 +28,12 @@ export function VoiceBar({ voice, allowClips = false }: { voice: Voice; allowCli
     <div className={`voice-bar voice-${voice.state}`} role="region" aria-label="Voice mode">
       <div className="voice-row">
         <span className={`pill pill-${voice.state}`}>{LABELS[voice.state]}</span>
+        {voice.state === "live" && (
+          <span className={`activity activity-${voice.activity}`} role="status" aria-live="polite">
+            <span className="activity-dot" aria-hidden="true" />
+            {ACTIVITY[voice.activity]}
+          </span>
+        )}
         {voice.state === "live" && (
           <span className="mono small">
             {mmss(voice.elapsed)} / {mmss(voice.maxSeconds)}

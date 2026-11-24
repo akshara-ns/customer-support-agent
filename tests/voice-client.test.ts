@@ -125,6 +125,30 @@ describe("tool bridge", () => {
   });
 });
 
+describe("activity indicator", () => {
+  it("listening → thinking → speaking → listening across a turn", async () => {
+    const { c, deps, ev } = harness();
+    const seen: string[] = [];
+    deps.setActivity = (a) => void seen.push(a);
+    await ev({ type: "input_audio_buffer.speech_started", item_id: "u1" });
+    await ev({ type: "input_audio_buffer.speech_stopped" });
+    await ev({ type: "response.created", response: { id: "r9" } });
+    await ev({ type: "output_audio_buffer.started", response_id: "r9" });
+    await ev({ type: "output_audio_buffer.stopped", response_id: "r9" });
+    expect(seen).toEqual(["listening", "thinking", "thinking", "speaking", "listening"]);
+    expect(c.speaking).toBe(false);
+  });
+
+  it("stays on thinking while a tool call runs", async () => {
+    const { c, deps, ev } = harness();
+    const seen: string[] = [];
+    deps.setActivity = (a) => void seen.push(a);
+    responding(c, "");
+    await ev({ type: "response.function_call_arguments.done", call_id: "c9", name: "get_policy", arguments: "{}", response_id: "r1" });
+    expect(seen.at(-1)).toBe("thinking");
+  });
+});
+
 describe("server events", () => {
   it("benign cancel races are not shown as errors", async () => {
     const { deps, ev } = harness();

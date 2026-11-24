@@ -4,6 +4,8 @@ import type { ChatMessage } from "@/components/agentEvents";
 
 export type VoiceState = "idle" | "connecting" | "live" | "reconnecting" | "ended" | "error";
 export type MicMode = "mic" | "clips";
+/** What the call is doing now, for the indicator: waiting for / hearing the caller, working on a reply, or talking. */
+export type VoiceActivity = "listening" | "thinking" | "speaking";
 
 export interface DebugEntry {
   t: number;

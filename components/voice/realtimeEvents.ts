@@ -5,7 +5,7 @@
 import { applyServerTruncation } from "@/components/voice/interruption";
 import type { ToolCall } from "@/components/voice/toolBridge";
 import { voiceMsg } from "@/components/voice/transcript";
-import type { Note, Post, ResponseState, Send, SetInterruptions, Upsert, VoiceRuntime } from "@/components/voice/types";
+import type { Note, Post, ResponseState, Send, SetInterruptions, Upsert, VoiceActivity, VoiceRuntime } from "@/components/voice/types";
 
 export interface EventDeps {
   note: Note;
@@ -19,6 +19,8 @@ export interface EventDeps {
   setInterruptions: SetInterruptions;
   setCostUsd: (fn: (x: number) => number) => void;
   setError: (msg: string) => void;
+  /** Drives the listening / thinking / speaking indicator. */
+  setActivity?: (a: VoiceActivity) => void;
 }
 
 const uuid = () => crypto.randomUUID();
@@ -41,6 +43,7 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
       c.itemTurn.set(itemId, c.turnId);
       upsert(`vu-${itemId}`, voiceMsg(`vu-${itemId}`, "user"), (m) => ({ ...m, text: "…", streaming: true }));
       d.interrupt();
+      d.setActivity?.("listening");
       break;
     }
     case "conversation.item.input_audio_transcription.delta": {
@@ -70,6 +73,7 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
       });
       c.activeResponseId = resp.id;
       if (c.audioEl) c.audioEl.muted = false;
+      if (!c.speaking) d.setActivity?.("thinking");
       break;
     }
     case "response.output_audio_transcript.delta": {
@@ -83,9 +87,11 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
     }
     case "input_audio_buffer.speech_stopped":
       c.lastSpeechStoppedAt = performance.now();
+      d.setActivity?.("thinking");
       break;
     case "output_audio_buffer.started": {
       c.speaking = true;
+      d.setActivity?.("speaking");
       const rid = String(ev.response_id ?? c.activeResponseId);
       c.playingResponseId = rid;
       const resp = c.responses.get(rid);
@@ -103,6 +109,8 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
       c.speaking = false;
       const resp = c.responses.get(String(ev.response_id ?? c.playingResponseId));
       c.playingResponseId = null;
+      // Tool results still pending means another response is coming.
+      d.setActivity?.(resp?.calls.length && !resp.interrupted ? "thinking" : "listening");
       if (resp && !resp.interrupted) d.logAssistant(resp); // full answer was heard
       break;
     }
@@ -110,6 +118,7 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
       applyServerTruncation(c, ev.item_id, Number(ev.audio_end_ms ?? 0), { upsert, setInterruptions: d.setInterruptions });
       break;
     case "response.function_call_arguments.done":
+      d.setActivity?.("thinking");
       d.startCall({ callId: String(ev.call_id), name: String(ev.name), args: String(ev.arguments ?? "{}"), responseId: String(ev.response_id) });
       break;
     case "response.done": {
@@ -138,6 +147,7 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
         upsert(resp.msgId, voiceMsg(resp.msgId, "assistant"), (m) => ({ ...m, streaming: false }));
         // Audio responses are logged when playback stops (or on interruption); text-only ones now.
         if (resp.audioStart === undefined) d.logAssistant(resp);
+        if (resp.audioStart === undefined && !resp.calls.length && !c.speaking) d.setActivity?.("listening");
         // Return every tool result for this response, then ask the model to continue.
         if (resp.calls.length) {
           const outputs = await Promise.all(resp.calls);

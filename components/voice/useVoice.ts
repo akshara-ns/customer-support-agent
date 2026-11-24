@@ -28,10 +28,11 @@ import {
   type MicMode,
   type ResponseState,
   type Upsert,
+  type VoiceActivity,
   type VoiceState,
 } from "@/components/voice/types";
 
-export type { DebugEntry, InterruptionStat, MicMode, VoiceState } from "@/components/voice/types";
+export type { DebugEntry, InterruptionStat, MicMode, VoiceActivity, VoiceState } from "@/components/voice/types";
 
 export function useVoice({
   sessionId,
@@ -57,6 +58,7 @@ export function useVoice({
   const [conn, setConn] = useState({ pc: "new", ice: "new", dc: "closed" });
   const [micAnalyser, setMicAnalyser] = useState<AnalyserNode | null>(null);
   const [agentLevel, setAgentAnalyser] = useState<AnalyserNode | null>(null);
+  const [activity, setActivity] = useState<VoiceActivity>("listening");
 
   const r = useRef(createRuntime());
 
@@ -141,6 +143,7 @@ export function useVoice({
         setInterruptions,
         setCostUsd,
         setError,
+        setActivity,
       }),
     [interrupt, note, post, send, sessionId, startCall, upsert, logAssistant],
   );
@@ -210,6 +213,7 @@ export function useVoice({
             if (s >= info.maxSeconds) stop(`The voice session reached its ${Math.round(info.maxSeconds / 60)}-minute limit.`);
           }, 250);
           setState("live");
+          setActivity("listening");
           note("note", `live (history ${info.history.length}, verified ${info.verified})`);
         };
         dc.onclose = () => {
@@ -284,6 +288,7 @@ export function useVoice({
 
   return {
     state,
+    activity,
     mode,
     elapsed,
     maxSeconds,
