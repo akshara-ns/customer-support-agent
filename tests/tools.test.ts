@@ -49,6 +49,16 @@ describe("verify_identity", () => {
     expect(a.effects.failedVerification).toBe(true);
   });
 
+  it("re-verifying an already verified account is a no-op, even with the redacted PIN", async () => {
+    const r = await executeTool("verify_identity", JSON.stringify({ email: "omar@example.com", code: "[redacted]" }), ctx(OMAR), deps);
+    expect(r.result.ok).toBe(true);
+    expect((r.result as { data: { already_verified: boolean } }).data.already_verified).toBe(true);
+    expect(r.effects.failedVerification).toBeUndefined();
+    // A different account still needs its own PIN.
+    const other = await executeTool("verify_identity", JSON.stringify({ email: "sam@example.com", code: "[redacted]" }), ctx(OMAR), deps);
+    expect(err(other).code).toBe("VERIFICATION_FAILED");
+  });
+
   it("locks after the third failure and opens a P1 security ticket", async () => {
     const r = await executeTool("verify_identity", JSON.stringify({ email: "omar@example.com", code: "000000" }), ctx(null, { failedVerifications: 2 }), deps);
     expect(err(r).code).toBe("IDENTITY_LOCKED");

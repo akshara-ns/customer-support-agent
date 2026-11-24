@@ -32,6 +32,8 @@ export interface VerifyOutput {
   tier: Tier;
   contract_status: ContractStatus;
   contract_end: string | null;
+  /** True when this session had already verified this account (no new PIN check). */
+  already_verified: boolean;
   invoices: {
     invoice_id: string;
     date: string;
@@ -60,7 +62,9 @@ export async function verifyIdentity(
     };
   }
   const user = deps.customers.findByEmail(input.email);
-  if (!user || user.supportPin !== input.code.trim()) {
+  // Already verified for this account in this session: don't re-check the PIN (the model only sees it redacted).
+  const alreadyVerified = !!user && ctx.customer?.customerId === user.customerId;
+  if (!user || (!alreadyVerified && user.supportPin !== input.code.trim())) {
     const attempts = ctx.failedVerifications + 1;
     if (attempts >= MAX_FAILED_VERIFICATIONS) {
       // Policy: after three failed attempts, stop and escalate to the security team.
@@ -109,6 +113,7 @@ export async function verifyIdentity(
         tier: user.tier,
         contract_status: user.contractStatus,
         contract_end: user.contractEnd,
+        already_verified: alreadyVerified,
         invoices,
       },
     },
