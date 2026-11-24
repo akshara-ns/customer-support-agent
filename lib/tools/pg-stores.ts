@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { ACCOUNT_LOCK_WINDOW_SEC } from "@/lib/tools/policy";
 import { db } from "@/lib/db/client";
 import { answerWithGuardrails } from "@/lib/guardrails/pipeline";
+import { policySearchWith } from "@/lib/tools/policy-search";
 import type { ActionLedger, LedgerEntry, PolicySearch, TicketStore, VerifyGuard } from "@/lib/tools/stores";
 
 interface ActionRow {
@@ -92,25 +93,8 @@ export const pgTickets: TicketStore = {
   },
 };
 
-/** get_policy backend: the calibrated retrieval + grounding pipeline from phase 2. */
-export const guardedPolicySearch: PolicySearch = {
-  async search(question, tier, trace) {
-    const r = await answerWithGuardrails({ query: question, tier: tier ?? undefined, generalOnly: tier === null }, trace);
-    if (r.decision.escalate || !r.answer) {
-      return {
-        status: "needs_escalation",
-        reason: r.decision.escalate ? r.decision.reason : "no_answer",
-        confidence: Math.round(r.decision.confidence * 1000) / 1000,
-      };
-    }
-    return {
-      status: "answered",
-      answer: r.answer,
-      citations: r.grounding?.citations.cited ?? [],
-      confidence: Math.round(r.decision.confidence * 1000) / 1000,
-    };
-  },
-};
+/** get_policy backend: the guarded pipeline, with the ask-to-verify rule for tier-specific questions. */
+export const guardedPolicySearch: PolicySearch = policySearchWith(answerWithGuardrails);
 
 const emailKey = (email: string) => createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 32);
 

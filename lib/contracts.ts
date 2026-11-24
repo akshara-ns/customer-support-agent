@@ -97,6 +97,14 @@ export type PolicyAnswer =
       ticket?: Ticket;
       /** What the agent must tell the customer (handoff with the ticket, or an offer). */
       next_step?: string;
+    }
+  | {
+      /** Unverified, but the answer is in tier-specific sections: ask the customer to verify first. */
+      status: "needs_verification";
+      reason: "tier_specific";
+      confidence: number;
+      tiers: Tier[];
+      next_step: string;
     };
 
 export type PolicyOutput = PolicyAnswer & { tier_scope: Tier | "general" };

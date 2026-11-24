@@ -43,7 +43,9 @@ export function summarizeOutcome(o: ToolOutcome): string {
     case "verify_identity":
       return `Verified: ${o.result.data.tier} tier, contract ${o.result.data.contract_status}`;
     case "get_policy":
-      return o.result.data.status === "answered" ? `Found policy answer (confidence ${o.result.data.confidence})` : "Not covered by policy: escalation suggested";
+      if (o.result.data.status === "answered") return `Found policy answer (confidence ${o.result.data.confidence})`;
+      if (o.result.data.status === "needs_verification") return "Depends on your plan: verification needed";
+      return o.result.data.ticket ? `Not covered reliably: handed to a person (${o.result.data.ticket.ticketNumber})` : "Not covered by policy: escalation offered";
     case "issue_refund":
       return `Refund of $${o.result.data.amountUsd} issued on ${o.result.data.invoiceId}${o.result.data.replayed ? " (already processed)" : ""}`;
     case "create_escalation_ticket":
