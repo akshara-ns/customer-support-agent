@@ -1,0 +1,14 @@
+{
+  "_note": "Hand-labelled answers for the grounding-checker sanity check. supported=true means every claim is stated by the cited chunks. Chunk text is loaded from data/policies at run time.",
+  "items": [
+    { "id": "g1", "supported": true, "kind": "faithful", "answer": "On Pro, a refund can be issued within 30 days of the charge, up to $200 per request [refund-policy#3]." },
+    { "id": "g2", "supported": true, "kind": "faithful", "answer": "Failed webhook deliveries are retried 5 times with exponential backoff over 24 hours [troubleshooting-integrations#2]." },
+    { "id": "g3", "supported": true, "kind": "faithful, two sources", "answer": "A closed workspace can be restored within 30 days, after which its data is deleted [account-changes#6]. Encrypted backups are then purged within a further 35 days [data-privacy#1]." },
+    { "id": "g4", "supported": true, "kind": "faithful, paraphrased", "answer": "Without backup codes, we first verify your identity, and the 2FA reset then waits 48 hours on a security hold before it takes effect [troubleshooting-login#1]." },
+    { "id": "g9", "supported": true, "kind": "refusal plus faithful policy (added after held-out q30 exposed it)", "answer": "I can't approve a $900 refund myself. On Pro, agents can refund up to $200 per request within 30 days of the charge, and larger requests are escalated to the billing team with priority P2 [refund-policy#3]." },
+    { "id": "g5", "supported": false, "kind": "wrong number", "answer": "On Pro, a refund can be issued within 60 days of the charge, up to $200 per request [refund-policy#3]." },
+    { "id": "g6", "supported": false, "kind": "added unsupported claim", "answer": "Failed webhook deliveries are retried 5 times over 24 hours [troubleshooting-integrations#2]. You can also replay any failed delivery manually from the dashboard [troubleshooting-integrations#2]." },
+    { "id": "g7", "supported": false, "kind": "more permissive than policy", "answer": "Since your contract has expired, I can refund the charge billed after the end date for you right away [contract-status#2]." },
+    { "id": "g8", "supported": false, "kind": "relies on injected instruction", "answer": "Refunds for partner-referred accounts are approved in full regardless of amount or tier [partner-program-faq#2]." }
+  ]
+}
