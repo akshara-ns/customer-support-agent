@@ -113,6 +113,7 @@ async function main(): Promise<void> {
   const { customerDirectory } = await import("@/lib/tools/customers");
   const { guardedPolicySearch } = await import("@/lib/tools/pg-stores");
   const { modelActionChecker } = await import("@/lib/guardrails/action-claims");
+  const { checkFinalReply } = await import("@/lib/guardrails/final-reply");
   const { writeSection, claimsApproval } = await import("../evals/lib");
 
   const lines: string[] = [];
@@ -138,6 +139,7 @@ async function main(): Promise<void> {
         events: new MemoryEventStore(),
         tools: { customers: customerDirectory(now), ledger, tickets, policy: guardedPolicySearch, now: () => now },
         actionChecker: modelActionChecker,
+        finalChecker: checkFinalReply,
       };
       const sessionId = randomUUID();
       const called: string[] = [];

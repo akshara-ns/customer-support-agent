@@ -14,5 +14,8 @@ export const productionEvents = pgEventStore;
 /** Layer-2 action-claim check (gpt-5.4-nano extraction vs the tool log), used by chat and voice. */
 export { modelActionChecker as productionActionChecker } from "@/lib/guardrails/action-claims";
 
+/** Final-reply grounding against the conversation's tool records (gpt-5.4-nano). */
+export { checkFinalReply as productionFinalChecker } from "@/lib/guardrails/final-reply";
+
 /** Demo accounts for the public panel (server-rendered on the home page). */
 export { demoUsers } from "@/lib/tools/customers";

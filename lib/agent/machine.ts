@@ -16,7 +16,8 @@ const TRANSITIONS: Record<AgentState, readonly AgentState[]> = {
   awaiting_input: ["planning", "failed"],
   planning: ["executing_tool", "checking_claims", "failed"],
   executing_tool: ["planning", "failed"],
-  checking_claims: ["responding", "failed"],
+  // executing_tool: final-reply grounding may run the guardrail (get_policy) in code.
+  checking_claims: ["responding", "executing_tool", "failed"],
   responding: ["completed", "escalated", "failed"],
   escalated: [],
   completed: [],

@@ -4,6 +4,8 @@
  * streamed through the claim gate. Every step is logged, traced and emitted as an event.
  */
 import { ClaimGate, type ActionChecker, type TurnActions } from "@/lib/guardrails/claims";
+import type { FinalReplyChecker } from "@/lib/guardrails/final-reply";
+import { dropUnsupported, factsFromEvents, replyForPolicyOutcome } from "@/lib/guardrails/final-rules";
 import { AgentMachine, type AgentState } from "@/lib/agent/machine";
 import { ModelError, type AgentModel } from "@/lib/agent/model";
 import { GUARDRAILS } from "@/lib/config";
@@ -41,6 +43,11 @@ export interface TurnDeps {
   actionChecker?: ActionChecker;
   /** End-to-end budget for the turn (default GUARDRAILS.turnDeadlineMs); tests shorten it. */
   deadlineMs?: number;
+  /**
+   * Final-reply grounding: the whole final reply is held and checked against this conversation's tool
+   * records. Unsupported with no get_policy this turn → the guardrail runs in code on the customer's message.
+   */
+  finalChecker?: FinalReplyChecker;
 }
 
 /** Streamed before the first tool runs when the model gave no preamble (claim-free by construction). */
@@ -93,7 +100,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
   // Seeded with refunds/tickets from earlier turns, so true references to them aren't "corrected".
   const earlier = actionsForTurn(history);
   const actions: TurnActions = { refunds: [...earlier.refunds], refundErrors: [], tickets: [...earlier.tickets] };
-  const gate = new ClaimGate(() => actions, Boolean(deps.actionChecker));
+  const gate = new ClaimGate(() => actions, deps.finalChecker ? "all" : Boolean(deps.actionChecker));
   const checker: ActionChecker | undefined = deps.actionChecker
     ? (text, a) =>
         trace.span("guardrail", "action_claim_check", { layer: 2 }, async (s) => {
@@ -125,6 +132,58 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
       attemptEmitted++;
       emit({ type: "token", text });
     }
+  };
+
+  /**
+   * Final-reply grounding (see TurnDeps.finalChecker). Returns the sentences to release.
+   * - No tool this turn and unsupported claims (off-topic, made-up facts): the guardrail runs in code
+   *   (get_policy on the customer's own message), so escalation doesn't depend on the model calling it.
+   * - get_policy this turn: unsupported sentences are removed, the grounded part stays.
+   * - Only action tools: released (tool records + action-claim check); the finding is logged as advisory.
+   */
+  const groundFinal = async (text: string): Promise<string[]> => {
+    const facts = factsFromEvents(await deps.events.list(sessionId));
+    const check = await trace.span("guardrail", "final_grounding", { records: facts.length }, async (s) => {
+      const r = await deps.finalChecker!(text, facts);
+      if (r.usage) s.usage({ model: r.usage.model, tokensIn: r.usage.tokensIn, tokensOut: r.usage.tokensOut });
+      s.output({ claims: r.claims, unsupported: r.unsupported });
+      return r;
+    });
+    if (check.ok) return [text];
+    // Tool turns are backed by the tool records and the action-claim check; only policy text is trimmed.
+    // (The checker flags harmless paraphrases of tool results, so it must not escalate those turns.)
+    if (toolsCalled.length > 0 && !toolsCalled.includes("get_policy")) {
+      trace.mark("guardrail", "final_grounding_advisory", { unsupported: check.unsupported });
+      return [text];
+    }
+    if (toolsCalled.length === 0) {
+      toolsCalled.push("get_policy");
+      go("executing_tool", "get_policy (guardrail, in code)");
+      const { outcome } = await runToolStep({
+        sessionId,
+        turnId: trace.turnId,
+        channel,
+        stepId: `${trace.turnId}:guardrail`,
+        call: { id: `guardrail-${trace.turnId}`, name: "get_policy", arguments: JSON.stringify({ question: input.message.slice(0, 500) }) },
+        ctx,
+        deps: deps.tools,
+        events: deps.events,
+        emit,
+        trace,
+      });
+      if (outcome.effects.ticket) actions.tickets.push(outcome.effects.ticket);
+      if (outcome.name === "get_policy" && outcome.result.ok && outcome.result.data.status === "needs_escalation") escalated = true;
+      if (outcome.effects.ticket) escalated = true;
+      go("planning");
+      go("checking_claims");
+      trace.mark("guardrail", "final_reply_replaced", { unsupported: check.unsupported });
+      iterationText = "";
+      return [replyForPolicyOutcome(outcome)];
+    }
+    const trimmed = dropUnsupported(text, check.unsupported);
+    trace.mark("guardrail", "final_reply_trimmed", { unsupported: check.unsupported, removed: trimmed?.removed ?? "all" });
+    iterationText = "";
+    return [trimmed?.text || "I couldn't confirm that from our records. I can hand your question to a person if you'd like."];
   };
 
   // One end-to-end deadline: every model call, check and tool step runs under its signal and races it.
@@ -179,7 +238,11 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
 
       if (turn.toolCalls.length === 0 || toolChoice === "none") {
         go("checking_claims");
-        say(await guarded(() => gate.settle(checker, (err) => trace.mark("guardrail", "action_claim_check_failed", { error: String(err) }))));
+        let finalSentences = gate.flush();
+        if (deps.finalChecker && finalSentences.join("").trim()) {
+          finalSentences = await guarded(() => groundFinal(finalSentences.join("")));
+        }
+        say(await guarded(() => gate.settleText(finalSentences, checker, (err) => trace.mark("guardrail", "action_claim_check_failed", { error: String(err) }))));
         if (gate.corrections.length) trace.mark("guardrail", "claim_check", { corrections: gate.corrections });
         go("responding");
         await log({ type: "assistant_message", text: iterationText.trim(), corrections: gate.corrections.map((c) => c.reason) });

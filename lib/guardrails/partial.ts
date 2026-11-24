@@ -33,7 +33,7 @@ const STOP = new Set("a an the and or of to in on for is are be with your you it
 const words = (s: string) => new Set(s.toLowerCase().replace(/\[[^\]]+\]/g, " ").match(/[a-z0-9$]+/g)?.filter((w) => !STOP.has(w)) ?? []);
 
 /** Index of the sentence that best contains the claim, or -1 if none overlaps enough. */
-function locate(claim: string, sentences: string[]): number {
+export function locate(claim: string, sentences: string[]): number {
   const c = words(claim);
   if (!c.size) return -1;
   let best = -1;

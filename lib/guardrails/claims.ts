@@ -93,7 +93,8 @@ export class ClaimGate {
 
   constructor(
     private readonly actions: () => TurnActions,
-    private readonly hold = false,
+    /** true: hold from the first money/ticket sentence; "all": hold the whole reply (final-reply grounding). */
+    private readonly hold: boolean | "all" = false,
   ) {}
 
   push(delta: string): string[] {
@@ -105,7 +106,7 @@ export class ClaimGate {
     for (let m = re.exec(this.buffer); m && m[0].length > 0; m = re.exec(this.buffer)) {
       if (m.index + m[0].length >= this.buffer.length && !/\s$/.test(m[0])) break;
       const checked = this.check(m[0]);
-      if (this.hold && (this.held.length || ACTION_VOCABULARY.test(checked))) this.held.push(checked);
+      if (this.hold === "all" || (this.hold && (this.held.length || ACTION_VOCABULARY.test(checked)))) this.held.push(checked);
       else out.push(checked);
       consumed = m.index + m[0].length;
     }
@@ -133,7 +134,11 @@ export class ClaimGate {
    * truth from the tool log, and releases them. If the checker fails, the regex-checked text is released.
    */
   async settle(checker?: ActionChecker, onError?: (err: unknown) => void): Promise<string[]> {
-    const held = this.flush();
+    return this.settleText(this.flush(), checker, onError);
+  }
+
+  /** The action-claim check on given sentences (already regex-checked), e.g. after final-reply grounding replaced some. */
+  async settleText(held: string[], checker?: ActionChecker, onError?: (err: unknown) => void): Promise<string[]> {
     const text = held.join("");
     if (!checker || !ACTION_VOCABULARY.test(text)) return held;
     let falseClaims: { quote: string; claimed_action: string }[];
