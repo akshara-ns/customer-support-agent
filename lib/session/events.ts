@@ -110,19 +110,22 @@ export class MemoryEventStore implements EventStore {
   }
 }
 
-/** Refunds, refusals and tickets from tool results logged under one turn id (for the claim check). */
-export function actionsForTurn(events: StoredEvent[], turnId: string): {
+/**
+ * Refunds, refusals and tickets from tool results (for the claim check). With `turnId`, only that
+ * turn; without, the whole session. Refusals are only kept for the given turn.
+ */
+export function actionsForTurn(events: StoredEvent[], turnId?: string): {
   refunds: RefundReceipt[];
   refundErrors: ToolError[];
   tickets: Ticket[];
 } {
   const out = { refunds: [] as RefundReceipt[], refundErrors: [] as ToolError[], tickets: [] as Ticket[] };
   for (const e of events) {
-    if (e.turnId !== turnId || e.event.type !== "tool_result") continue;
+    if ((turnId !== undefined && e.turnId !== turnId) || e.event.type !== "tool_result") continue;
     const ev = e.event;
     if (ev.name === "issue_refund") {
       if (ev.result.ok) out.refunds.push(ev.result.data as RefundReceipt);
-      else out.refundErrors.push(ev.result.error);
+      else if (turnId !== undefined) out.refundErrors.push(ev.result.error);
     }
     if (ev.effects.ticket) out.tickets.push(ev.effects.ticket);
   }

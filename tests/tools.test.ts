@@ -54,9 +54,10 @@ describe("verify_identity", () => {
     expect(r.result.ok).toBe(true);
     expect((r.result as { data: { already_verified: boolean } }).data.already_verified).toBe(true);
     expect(r.effects.failedVerification).toBeUndefined();
-    // A different account still needs its own PIN.
+    // A different account still needs its own real PIN; a placeholder is invalid input, not a failed attempt.
     const other = await executeTool("verify_identity", JSON.stringify({ email: "sam@example.com", code: "[redacted]" }), ctx(OMAR), deps);
-    expect(err(other).code).toBe("VERIFICATION_FAILED");
+    expect(err(other).code).toBe("INVALID_INPUT");
+    expect(other.effects.failedVerification).toBeUndefined();
   });
 
   it("locks after the third failure and opens a P1 security ticket", async () => {

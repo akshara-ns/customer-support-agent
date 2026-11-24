@@ -1,5 +1,6 @@
 /**
- * Claim check: a reply may only claim actions that a tool result in this turn shows.
+ * Claim check: a reply may only claim actions that a tool result in this session shows
+ * (earlier turns included, so a true reference to an earlier refund isn't "corrected").
  * Runs per sentence while the reply streams, so nothing false reaches the customer.
  */
 import type { RefundReceipt, Ticket, ToolError } from "@/lib/tools/types";
@@ -21,6 +22,9 @@ const REFUND_DONE =
   /\b(refund\w*|reimburs\w*)\b[^.!?]*\b(has been|have been|was|is now|is being|been)\s+(issued|processed|approved|completed|sent|initiated)\b|\b(i|we)(['’]ve| have)?\s+(issued|processed|approved|refunded|initiated|sent)\b[^.!?]*\b(refund|\$)/i;
 /** "Refund approved and issued", "your refund is processed". Plural "Refunds are issued…" is policy text, not a claim. */
 const REFUND_SINGULAR_DONE = /\brefund\b(?!s)[^.!?]*\b(approved|issued|processed|completed|initiated|sent)\b/i;
+/** Paraphrases: "I've credited $500 back", "the money is on its way back to your card". */
+const REFUND_PARAPHRASE =
+  /\b(credited|reimbursed|refunded|returned|sent back)\b[^.!?]*\$\s?\d|\b(money|funds|amount|payment|refund)\b(?!s)[^.!?]*\b(on its way|on the way|being returned|sent back|been returned)\b/i;
 const TICKET_DONE =
   /\b(ticket|escalation|case)\b[^.!?]*\b(has been|have been|was|is now|been)\s+(created|opened|raised|filed|logged|submitted)\b|\b(i|we)(['’]ve| have)?\s+(created|opened|raised|filed|logged|submitted|escalated)\b/i;
 const TICKET_ID = /\bESC-\d+\b/g;
@@ -39,7 +43,7 @@ export function checkSentence(sentence: string, actions: TurnActions): SentenceC
     return { text: ticketTruth(actions), corrected: true, reason: "claimed a ticket that wasn't created" };
   }
 
-  if (!negated && (REFUND_DONE.test(sentence) || REFUND_SINGULAR_DONE.test(sentence))) {
+  if (!negated && (REFUND_DONE.test(sentence) || REFUND_SINGULAR_DONE.test(sentence) || REFUND_PARAPHRASE.test(sentence))) {
     if (actions.refunds.length === 0) {
       return { text: refundTruth(actions), corrected: true, reason: "claimed a refund that wasn't issued" };
     }

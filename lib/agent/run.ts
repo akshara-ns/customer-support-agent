@@ -10,7 +10,8 @@ import { DEFAULT_RETRY, withRetry } from "@/lib/agent/retry";
 import { redact } from "@/lib/observability/redact";
 import { SYSTEM_PROMPT } from "@/lib/agent/prompt";
 import { Trace } from "@/lib/observability/trace";
-import { buildContext, deriveState, type EventStore } from "@/lib/session/events";
+import { actionsForTurn, buildContext, deriveState, type EventStore } from "@/lib/session/events";
+import { redactText } from "@/lib/observability/redact";
 import { runToolStep } from "@/lib/agent/tool-step";
 import { TOOL_DEFINITIONS } from "@/lib/tools/registry";
 import type { ToolDeps } from "@/lib/tools/stores";
@@ -64,7 +65,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
   const log = (event: Parameters<EventStore["append"]>[3]) => deps.events.append(sessionId, trace.turnId, channel, event);
 
   await deps.events.ensureSession(sessionId);
-  const prior = deriveState(await deps.events.list(sessionId));
+  const history = await deps.events.list(sessionId);
+  const prior = deriveState(history);
   const ctx: ToolContext = {
     sessionId,
     turnId: trace.turnId,
@@ -72,9 +74,12 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
     failedVerifications: prior.failedVerifications,
     trace,
   };
-  await log({ type: "user_message", text: input.message });
+  // The log keeps a redacted copy (no PIN, masked email); the model sees the raw text for this turn only.
+  await log({ type: "user_message", text: redactText(input.message) });
 
-  const actions: TurnActions = { refunds: [], refundErrors: [], tickets: [] };
+  // Seeded with refunds/tickets from earlier turns, so true references to them aren't "corrected".
+  const earlier = actionsForTurn(history);
+  const actions: TurnActions = { refunds: [...earlier.refunds], refundErrors: [], tickets: [...earlier.tickets] };
   const gate = new ClaimGate(() => actions);
   const toolsCalled: string[] = [];
   let reply = "";
@@ -103,6 +108,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
       const toolChoice = steps >= MAX_TOOL_STEPS ? "none" : "auto";
       iterationText = "";
       const messages = buildContext(await deps.events.list(sessionId));
+      const current = messages.findLastIndex((m) => m.role === "user");
+      if (current >= 0) messages[current] = { role: "user", content: input.message };
       const promptTrace = {
         model: deps.model.name,
         toolChoice,

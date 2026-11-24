@@ -8,6 +8,7 @@ import { REALTIME_PRICING_PER_MTOK } from "@/lib/config";
 import { actionsForTurn, deriveState, type EventStore } from "@/lib/session/events";
 import type { ToolDeps } from "@/lib/tools/stores";
 import { Trace } from "@/lib/observability/trace";
+import { redactText } from "@/lib/observability/redact";
 import type { AgentEvent, SpanKind } from "@/lib/types";
 
 export interface VoiceToolRequest {
@@ -103,11 +104,14 @@ export async function recordVoiceEvent(
 ): Promise<{ flags: string[]; costUsd?: number }> {
   await deps.events.ensureSession(sessionId);
   if (ev.kind === "user_transcript") {
-    await deps.events.append(sessionId, turnId, "voice", { type: "user_message", text: ev.text });
+    await deps.events.append(sessionId, turnId, "voice", { type: "user_message", text: redactText(ev.text) });
     return { flags: [] };
   }
   if (ev.kind === "assistant_transcript") {
-    const actions = actionsForTurn(await deps.events.list(sessionId), turnId);
+    const events = await deps.events.list(sessionId);
+    const session = actionsForTurn(events);
+    const turn = actionsForTurn(events, turnId);
+    const actions = { refunds: session.refunds, tickets: session.tickets, refundErrors: turn.refundErrors };
     const gate = new ClaimGate(() => actions);
     gate.push(ev.text);
     gate.flush();

@@ -21,7 +21,8 @@ const TICKET_REASONS = [
 ] as const satisfies readonly TicketReason[];
 
 const Inputs = {
-  verify_identity: z.object({ email: z.string().min(3).max(200), code: z.string().min(1).max(20) }),
+  // Strict formats: a placeholder or malformed value is INVALID_INPUT and never counts as a failed attempt.
+  verify_identity: z.object({ email: z.email().max(200), code: z.string().regex(/^\d{6}$/, "support PIN must be 6 digits") }),
   get_policy: z.object({ question: z.string().min(3).max(500) }),
   issue_refund: z.object({ invoice_id: z.string().min(1).max(40), amount_usd: z.number(), reason: z.string().min(1).max(300) }),
   create_escalation_ticket: z.object({ reason: z.enum(TICKET_REASONS), summary: z.string().min(5).max(1000) }),
@@ -104,7 +105,8 @@ export const TOOL_DEFINITIONS = [
 ] as const;
 
 export interface ToolOutcome {
-  name: ToolName;
+  /** "unknown_tool" when the model asked for a tool that doesn't exist. */
+  name: ToolName | "unknown_tool";
   result: ToolResult<unknown>;
   effects: VerifyEffects;
 }
@@ -117,7 +119,7 @@ export function isToolName(name: string): name is ToolName {
 export async function executeTool(name: string, rawArgs: string, ctx: ToolContext, deps: ToolDeps): Promise<ToolOutcome> {
   if (!isToolName(name)) {
     return {
-      name: "get_policy",
+      name: "unknown_tool",
       result: { ok: false, error: { code: "INVALID_INPUT", message: `Unknown tool ${name}.`, retryable: false } },
       effects: {},
     };
@@ -127,6 +129,14 @@ export async function executeTool(name: string, rawArgs: string, ctx: ToolContex
     args = JSON.parse(rawArgs || "{}");
   } catch {
     return { name, result: { ok: false, error: { code: "INVALID_INPUT", message: "Arguments are not valid JSON.", retryable: true } }, effects: {} };
+  }
+  // Re-verifying the account this session already verified is a no-op (the model only ever sees
+  // the PIN redacted in later turns), so let it through before the strict format check.
+  if (name === "verify_identity" && ctx.customer) {
+    const loose = z.object({ email: z.string(), code: z.string() }).safeParse(args);
+    if (loose.success && deps.customers.findByEmail(loose.data.email)?.customerId === ctx.customer.customerId) {
+      return { name, ...(await verifyIdentity(loose.data, ctx, deps)) };
+    }
   }
   const parsed = Inputs[name].safeParse(args);
   if (!parsed.success) {
