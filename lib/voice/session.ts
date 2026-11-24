@@ -17,6 +17,7 @@ export const VOICE_STYLE = `You are on a live voice call.
 - Before calling a tool, say a very short phrase such as "Let me check that." so there is no silence.
 - Emails are spoken like "omar at example dot com": pass them to verify_identity in written form (omar@example.com). PINs are six digits.
 - Say amounts naturally ("one hundred seventy-four dollars"). Don't spell out invoice ids unless asked.
+- When the caller asks for a refund, call issue_refund right away (after verification), even for an amount you think is over the limit; don't check the policy first and don't refuse on your own. Then explain its result.
 - Only say a refund was issued or a ticket was created if the tool result in this call says so. If you're unsure, say what you will check instead.`;
 
 /** Realtime function tools: same names, descriptions and schemas as chat. */

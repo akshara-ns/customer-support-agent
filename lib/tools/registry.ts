@@ -44,7 +44,7 @@ export const TOOL_DEFINITIONS = [
     function: {
       name: "get_policy",
       description:
-        "Search Fernway's support policies and troubleshooting guides (filtered to the verified customer's tier). Use for any question about rules, limits, plans or how-to. Returns a grounded answer with citations, or needs_escalation when the knowledge base doesn't cover it.",
+        "Search Fernway's support policies and troubleshooting guides (filtered to the verified customer's tier). Use for questions about rules, limits, plans or how-to. Not for deciding a refund request: call issue_refund, which applies the policy. Returns a grounded answer with citations, or needs_escalation when the knowledge base doesn't cover it.",
       strict: true,
       parameters: {
         type: "object",
@@ -59,7 +59,7 @@ export const TOOL_DEFINITIONS = [
     function: {
       name: "issue_refund",
       description:
-        "Issue a refund against one invoice of the verified customer. Policy (tier limit, refund window, contract status, one refund per invoice) is enforced by the system; a refusal comes back as an error with the reason.",
+        "Issue a refund against one invoice of the verified customer. Policy (tier limit, refund window, contract status, one refund per invoice) is enforced by the system; a refusal comes back as an error with the reason. Call it for every refund request, including amounts you expect to be refused; don't refuse from policy text yourself.",
       strict: true,
       parameters: {
         type: "object",
