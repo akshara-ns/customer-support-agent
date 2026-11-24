@@ -28,7 +28,7 @@ export interface TraceRow {
   kind: SpanKind;
   name: string;
   status: "ok" | "error";
-  started_at: string;
+  started_at: string | Date;
   duration_ms: number;
   input: unknown;
   output: unknown;

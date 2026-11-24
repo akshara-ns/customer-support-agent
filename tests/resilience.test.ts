@@ -165,9 +165,10 @@ describe("units", () => {
 
   it("redacts secrets, emails and PINs, and sensitive keys", () => {
     expect(redactText("omar@example.com PIN 715204, $174.00, key sk-abcdefghijkl")).toBe("o***@example.com PIN [pin], $174.00, key [secret]");
-    expect(redact({ email: "sam@example.com", code: "559072", nested: [{ clientSecret: "ek_123456789" }] })).toEqual({
+    expect(redact({ email: "sam@example.com", code: "559072", error: { code: "TOOL_FAILURE" }, nested: [{ clientSecret: "ek_123456789" }] })).toEqual({
       email: "s***@example.com",
-      code: "[redacted]",
+      code: "[pin]",
+      error: { code: "TOOL_FAILURE" },
       nested: [{ clientSecret: "[redacted]" }],
     });
   });

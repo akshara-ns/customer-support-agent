@@ -59,6 +59,8 @@ export function percentile(values: number[], p: number): number | null {
 }
 
 const num = (v: string | number | null | undefined) => (v === null || v === undefined ? 0 : Number(v));
+/** The Neon driver returns timestamptz as a Date; Date.parse(date) would drop milliseconds. */
+const toMs = (v: string | Date) => (v instanceof Date ? v.getTime() : Date.parse(v));
 
 export function buildReport(rows: TraceRow[]): SessionReport {
   const byTurn = new Map<string, TraceRow[]>();
@@ -67,8 +69,8 @@ export function buildReport(rows: TraceRow[]): SessionReport {
   const turns: TurnReport[] = [];
   const voiceLatencies: number[] = [];
   for (const [turnId, list] of byTurn) {
-    const t0 = Math.min(...list.map((r) => Date.parse(r.started_at)));
-    const end = Math.max(...list.map((r) => Date.parse(r.started_at) + r.duration_ms));
+    const t0 = Math.min(...list.map((r) => toMs(r.started_at)));
+    const end = Math.max(...list.map((r) => toMs(r.started_at) + r.duration_ms));
     const nodes = new Map<string, SpanNode>();
     for (const r of list) {
       nodes.set(r.id, {
@@ -76,7 +78,7 @@ export function buildReport(rows: TraceRow[]): SessionReport {
         kind: r.kind,
         name: r.name,
         status: r.status,
-        startMs: Date.parse(r.started_at) - t0,
+        startMs: toMs(r.started_at) - t0,
         durationMs: r.duration_ms,
         tokensIn: r.tokens_in,
         tokensOut: r.tokens_out,
