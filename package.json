@@ -20,7 +20,8 @@
     "voice:clips": "tsx scripts/make-voice-clips.ts",
     "eval:heldout": "tsx --conditions=react-server scripts/eval-guardrails-heldout.ts",
     "eval:action-claims": "tsx --conditions=react-server scripts/eval-action-claims.ts",
-    "eval:evidence": "tsx scripts/evidence-summary.ts"
+    "eval:evidence": "tsx scripts/evidence-summary.ts",
+    "eval:confidence": "tsx --conditions=react-server scripts/eval-confidence.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.1",
