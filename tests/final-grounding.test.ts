@@ -1,5 +1,5 @@
 /**
- * Final-reply grounding (senior review + Phase 9 open item): the text the customer sees must be backed by
+ * Final-reply grounding (senior review + review round 4 open item): the text the customer sees must be backed by
  * this conversation's tool records. An ungrounded reply with no policy lookup this turn goes through the
  * guardrail in code, so "recommend a stock" reaches the escalated state whatever the model chose to do.
  */

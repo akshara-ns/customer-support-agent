@@ -51,7 +51,7 @@ describe("G2: placeholder credentials don't burn a verification attempt", () => 
   });
 });
 
-describe("G5 (revised in Phase 10A): lockout per account + client, with a per-account ceiling", () => {
+describe("G5 (revised in review round 5): lockout per account + client, with a per-account ceiling", () => {
   it("after 5 failed attempts from one client across sessions, a NEW session from that client is locked too", async () => {
     const { MemoryVerifyGuard } = await import("@/lib/tools/memory-stores");
     const guard = new MemoryVerifyGuard();
@@ -67,7 +67,7 @@ describe("G5 (revised in Phase 10A): lockout per account + client, with a per-ac
   });
 });
 
-describe("lockout can't be used to lock a real customer out (Phase 10A, senior review)", () => {
+describe("lockout can't be used to lock a real customer out (review round 5, senior review)", () => {
   const attempt = async (deps: ToolDeps, clientKey: string, code: string, sessionId = `s-${Math.random()}`) =>
     executeTool("verify_identity", JSON.stringify({ email: "omar@example.com", code }), { sessionId, turnId: "t", customer: null, failedVerifications: 0, clientKey }, deps);
 

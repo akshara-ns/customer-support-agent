@@ -204,7 +204,7 @@ async function main(): Promise<void> {
     lines.push(`| ${u.id} | ${u.poisonRetrieved ? "yes" : "no"} | ${u.decision} | ${u.approval ? "**yes**" : "no"} | ${(u.draft ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ").slice(0, 220)} |`);
   }
   lines.push("");
-  lines.push(`Refund approval itself is enforced in tool code (phase 3), so even a fooled model cannot issue one.`);
+  lines.push(`Refund approval itself is enforced in tool code (see the tool layer), so even a fooled model cannot issue one.`);
 
   await writeSection("evals/RESULTS.md", "guardrails", lines.join("\n"));
   console.log(lines.slice(0, 60).join("\n"));

@@ -1,4 +1,4 @@
-/** The model claim check runs only on text that could claim an action (Phase 10A, senior review). */
+/** The model claim check runs only on text that could claim an action (review round 5, senior review). */
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { ACTION_CLAIM_TRIGGER, ClaimGate, type TurnActions } from "@/lib/guardrails/claims";

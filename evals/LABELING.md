@@ -1,6 +1,6 @@
 # Labelling convention for the guardrail sets
 
-Applies to `guardrail_set.jsonl` (v1), `guardrail_set_v2.jsonl` (v2) and any later set. Decided 2026-11-24 (Phase 10B).
+Applies to `guardrail_set.jsonl` (v1), `guardrail_set_v2.jsonl` (v2) and any later set. Decided 2026-11-24 (the evidence round).
 
 - **answerable**: the policy corpus states the answer to the customer's question for their tier (including an answer of the form "that needs escalation" when a document says so).
 - **should_escalate**: the corpus does not state the answer (out of scope, not covered, or only partly covered so a correct answer can't be given).

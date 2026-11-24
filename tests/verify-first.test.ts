@@ -1,5 +1,5 @@
 /**
- * Unverified tier-specific questions ask for verification instead of escalating (Phase 9, grader):
+ * Unverified tier-specific questions ask for verification instead of escalating (review round 4, grader):
  * the general-only search escalates, a retrieval-only check across tiers decides whether the answer
  * is in tier-specific sections. Fake pipeline, no API cost.
  */

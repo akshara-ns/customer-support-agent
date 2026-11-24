@@ -21,7 +21,7 @@
 
 **Realtime spend for all testing in this phase:** 30 responses, $0.1465 (from the `traces` table).
 
-## Re-check after the Phase 7 voice-hook split (2026-11-24, 03:36–03:44 UTC)
+## Re-check after the review round 2 voice-hook split (2026-11-24, 03:36–03:44 UTC)
 
 Commit `0cece47` (voice hook split into transport / audio / events / tool bridge / interruption), deployed and confirmed by `/api/health` → `"commit":"0cece47"`. Same method: test clips on `/voice-debug`, built-in browser. Demo data reset first (`npm run demo:reset -- --yes`).
 
@@ -29,22 +29,22 @@ Commit `0cece47` (voice hook split into transport / audio / events / tool bridge
 |---|---|---|---|
 | 1 | verify → policy → refund chain | **Pass** | Session 8ccbfe8b: ✓ "Verified: pro tier, contract active" → ✓ "Found policy answer (confidence 0.638)" → ✓ "Refund of $29 issued on inv_2004". Tool outputs returned to the model (`conversation.item.create` → `response.create`). |
 | 2 | Interruption | **Pass** | Mute 0 ms after `speech_started` (559 ms after caller audio began), `output_audio_buffer.clear` sent, server `conversation.item.truncated`; transcript "I can help, but I… interrupted". A second barge-in (refund clip over the policy answer): 0 ms / 243 ms, server truncation. |
-| 3 | Over-limit refund | **Refused correctly, but not by the tool (deviation)** | 3/3 tries (sessions 8ccbfe8b ×2, d1f4e93d): the model called `get_policy` (or used context) and refused "$900 is above the $200 per-request limit", offering escalation; `issue_refund` was **not** called. In Phase 4 it called the tool (✕ refusal by code). The split doesn't touch tool choice, and Phase 7 didn't change the prompt; but Phase 6 added "General questions that don't need the account go straight to get_policy" to the shared prompt (git diff 678288e..9570d9c), a likely cause. Not tuned in this phase. No refund can be issued except through `issue_refund`, which enforces the limit. Escalation tickets ESC-1007 and ESC-1008 (P2) created on request. |
+| 3 | Over-limit refund | **Refused correctly, but not by the tool (deviation)** | 3/3 tries (sessions 8ccbfe8b ×2, d1f4e93d): the model called `get_policy` (or used context) and refused "$900 is above the $200 per-request limit", offering escalation; `issue_refund` was **not** called. In the voice build it called the tool (✕ refusal by code). The split doesn't touch tool choice, and review round 2 didn't change the prompt; but review round 1 added "General questions that don't need the account go straight to get_policy" to the shared prompt (git diff 678288e..9570d9c), a likely cause. Not tuned in this phase. No refund can be issued except through `issue_refund`, which enforces the limit. Escalation tickets ESC-1007 and ESC-1008 (P2) created on request. |
 | 4 | Shared session across channels | **Pass (voice → chat)** | Session d1f4e93d: verified by voice clip, ended voice, typed "Which of my invoices can I still get refunded?": chat answered from the verified account without asking to verify (✓ policy step). Chat → voice is covered by the reconnect in #6 (`live (history 6, verified true)`) and the unit test; I did not type the demo PIN into the production site. The chat answer listed inv_2004 as eligible and then said it was fully refunded (wording inconsistency from the model; facts correct). |
 | 5 | Voice turns visible after reload, **now with step indicators** | **Pass** | Reload of `/` for 8ccbfe8b: VOICE turns with ✓ verify, ✓ policy ×2, ✓ refund, ✓ ticket ESC-1007 card, 3 "interrupted" markers. Same for d1f4e93d, including the chat step. (The first load took >3 s, a cold function.) |
 | 6 | Drop → reconnect | **Pass (simulated drop)** | "Simulate network drop" → auto-reconnect 1 s later → `live (history 6, verified true)` 2.9 s after the drop; "Yes, escalate" afterwards → ESC-1008 for the $900 request (context survived). |
 | 7 | 3-minute cap | **Pass** | Session 8ccbfe8b: "The voice session reached its 3-minute limit.", pc/dc closed. Realtime cost ≈ $0.097 for that session. |
 | 8 | No API key in the browser | **Pass** | 9 JS bundles of the new build scanned: no `sk-…`, `OPENAI_API_KEY`, `DATABASE_URL`, DB user or `ADMIN_SECRET`; `/api/voice/session` returns only `clientSecret` (`ek_…`), `expiresAt`, `model`, `verified`, `history`, `maxSeconds`. |
 
-## Phase 8 voice checks (2026-11-24, 04:11–04:19 UTC, commit `670a399`)
+## Review round 3 voice checks (2026-11-24, 04:11–04:19 UTC, commit `670a399`)
 
 | Check | Result | Evidence |
 |---|---|---|
-| Over-limit refund goes through the tool | **Pass 3/3** | Three fresh sessions (9553670b, ea74070a, 3946bb1b): "refund nine hundred dollars" → `issue_refund` called each time and refused by code. ✕ "$900 is above the $200 per-request limit for the pro tier", with escalation offered. In Phase 7 this was 0/3. |
+| Over-limit refund goes through the tool | **Pass 3/3** | Three fresh sessions (9553670b, ea74070a, 3946bb1b): "refund nine hundred dollars" → `issue_refund` called each time and refused by code. ✕ "$900 is above the $200 per-request limit for the pro tier", with escalation offered. In review round 2 this was 0/3. |
 | Stuck pending refund can't lock an invoice | **Pass** | Session 9553670b: trace drawer fault `tool_failure`, then "refund $29" → ✕ "Refund failed; nothing was refunded" (pending entry 04:14:23). Session ea74070a at 04:16:30: "refund $29" → ✓ "Refund of $29 issued on inv_2004". Prod ledger: the 04:14:23 entry is `rejected / REQUEST_EXPIRED` (key retired, completed 04:16:38), and one `succeeded` entry. |
 | Listening / thinking / speaking indicator | **Pass after a fix** | First deploy: the indicator stuck on "Thinking…" after the answer. Playback was one buffer across the tool call, and the stop event named the first response. Now derived from state; observed live: Listening → Thinking… → Speaking → Thinking… (tool) → Speaking → Listening. |
 
-## Phase 9 voice check (2026-11-24, commit `2d75b0d`)
+## Review round 4 voice check (2026-11-24, commit `2d75b0d`)
 
 | Check | Result | Evidence |
 |---|---|---|

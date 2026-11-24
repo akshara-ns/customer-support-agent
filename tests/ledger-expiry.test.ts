@@ -1,5 +1,5 @@
 /**
- * Stuck pending refunds (grader, Phase 7): a failure after the write-ahead entry left the invoice
+ * Stuck pending refunds (grader, review round 2): a failure after the write-ahead entry left the invoice
  * "in progress" forever. Pending entries now expire; the next request on the invoice resolves them.
  */
 import { beforeEach, describe, expect, it } from "vitest";

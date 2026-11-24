@@ -24,3 +24,12 @@ npm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local notes and tooling config (kept locally, not versioned)
+CLAUDE.md
+AGENTS.md
+.claude/
+BRIEF.md
+docs/PLAN.md
+docs/LOG.md
+docs/REQUIREMENTS.md

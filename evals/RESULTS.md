@@ -117,7 +117,7 @@ Pipeline latency per query (retrieval + answer + grounding): median 1971 ms, max
 | q29 | yes | answer | no | Partner margins are paid monthly by bank transfer for the previous month's paid invoices. [partner-program-faq#1] |
 | q30 | yes | escalate (answer_declined) | no | NOT_COVERED |
 
-Refund approval itself is enforced in tool code (phase 3), so even a fooled model cannot issue one.
+Refund approval itself is enforced in tool code (see the tool layer), so even a fooled model cannot issue one.
 <!-- guardrails:end -->
 
 <!-- grounding:start -->
@@ -164,7 +164,7 @@ Retrieval recall@5 on v2 answerable queries: 15/15 (100%). Cost of this run: $0.
 **v2 run history (threshold 0.28 and rule unchanged in all runs):**
 1. 2026-11-24 03:20 UTC, before partial grounding: FE 1/15, ME 0/15 (v11 escalated: no_citations).
 2. 2026-11-24 04:04 UTC, with partial grounding (unsupported side details removed instead of escalating): FE 1/15, ME 0/15. Same rates per category. Two decisions swapped: v11 now answered; v09 escalated (unsupported_claim). No answer took the partial path. v09 re-run twice afterwards: answered both times with its single claim supported, so its escalation here is answer-model variance, not the change.
-3. 2026-11-24, Phase 10A (SDK retries off, 8 s per-call timeout; final-reply grounding is agent-side, not part of this pipeline): FE 2/15, ME 0/15 (this table). v11 escalated again (`answer_declined`, a model decline, not an API error); across three runs v11 escalated twice, a borderline item. Threshold and rule unchanged.
+3. 2026-11-24, review round 5 (SDK retries off, 8 s per-call timeout; final-reply grounding is agent-side, not part of this pipeline): FE 2/15, ME 0/15 (this table). v11 escalated again (`answer_declined`, a model decline, not an API error); across three runs v11 escalated twice, a borderline item. Threshold and rule unchanged.
 
 | id | category | tier | label | top-1 | decision | reason | answer (first 140 chars) |
 |---|---|---|---|---|---|---|---|

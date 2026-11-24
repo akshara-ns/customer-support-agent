@@ -1,4 +1,4 @@
-/** A tool turn with no model preamble streams a short acknowledgment before the first tool runs (Phase 9). */
+/** A tool turn with no model preamble streams a short acknowledgment before the first tool runs (review round 4). */
 import { describe, expect, it } from "vitest";
 import type { AgentModel, ModelTurn } from "@/lib/agent/model";
 import { ACKNOWLEDGMENT, runTurn } from "@/lib/agent/run";

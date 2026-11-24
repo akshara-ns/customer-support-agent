@@ -1,5 +1,5 @@
 /**
- * A refund is only issued when the customer asked for one (Phase 9: a live scenario run showed the
+ * A refund is only issued when the customer asked for one (review round 4: a live scenario run showed the
  * model refunding inv_2002 after the customer only sent their credentials). Enforced in tool code.
  */
 import { describe, expect, it } from "vitest";

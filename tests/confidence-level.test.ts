@@ -1,4 +1,4 @@
-/** 3-level confidence (Phase 10B): LOW = escalated; HIGH = grounded, untrimmed, strong and unambiguous retrieval; else MEDIUM. */
+/** 3-level confidence (the evidence round): LOW = escalated; HIGH = grounded, untrimmed, strong and unambiguous retrieval; else MEDIUM. */
 import { describe, expect, it } from "vitest";
 import { confidenceLevel, docMargin } from "@/lib/guardrails/confidence";
 import type { RetrievedChunk } from "@/lib/types";

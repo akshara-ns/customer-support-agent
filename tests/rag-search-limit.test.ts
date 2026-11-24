@@ -1,6 +1,6 @@
 /**
- * /api/rag/search: rate limited in every mode (Phase 8), and public callers get only sections that
- * apply to every tier with no traces or drafts; tier filtering and traces need the admin key (Phase 9).
+ * /api/rag/search: rate limited in every mode (review round 3), and public callers get only sections that
+ * apply to every tier with no traces or drafts; tier filtering and traces need the admin key (review round 4).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 

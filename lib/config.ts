@@ -52,7 +52,7 @@ export const GUARDRAILS = {
   similarityThreshold: 0.28,
   /**
    * HIGH confidence needs top-1 ≥ this AND a doc-level margin ≥ highConfidenceDocMargin. Chosen on the v1
-   * calibration split only (Phase 10B): every should-escalate item there had a doc margin ≤ 0.094 and most
+   * calibration split only (the evidence round): every should-escalate item there had a doc margin ≤ 0.094 and most
    * answerable ones ≥ 0.103, so 0.10 separates them; validated on blind items in evals/CONFIDENCE.md.
    */
   highConfidenceTop1: 0.45,
