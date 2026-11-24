@@ -12,6 +12,8 @@ export interface RetrieveParams {
   topK?: number;
   /** Include chunks quarantined by the injection scan (debugging and evals only). */
   includeQuarantined?: boolean;
+  /** Unverified caller: only sections that apply to every tier (no tier-specific limits). */
+  generalOnly?: boolean;
   /** Exclude whole documents (evals: compare decisions with and without a document). */
   excludeDocIds?: string[];
 }
@@ -49,6 +51,8 @@ export async function retrieve(params: RetrieveParams, trace?: Trace): Promise<R
     const tier = params.tier ?? null;
     const includeQuarantined = params.includeQuarantined ?? false;
     const exclude = params.excludeDocIds ?? [];
+    const generalOnly = params.generalOnly ?? false;
+    const allTiers = ["free", "pro", "enterprise"];
     const k = params.topK ?? RETRIEVAL.topK;
 
     const sql = db();
@@ -62,6 +66,7 @@ export async function retrieve(params: RetrieveParams, trace?: Trace): Promise<R
         WHERE (${tier}::text IS NULL OR ${tier}::text = ANY(c.tiers))
           AND (${includeQuarantined}::boolean OR NOT c.quarantined)
           AND NOT (d.slug = ANY(${exclude}::text[]))
+          AND (NOT ${generalOnly}::boolean OR c.tiers @> ${allTiers}::text[])
         ORDER BY c.embedding <=> ${vec}::vector
         LIMIT ${k}`,
     ]);

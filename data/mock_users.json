@@ -1,5 +1,5 @@
 {
-  "_note": "Mock customers for the demo. Fictional people and companies. Dates relative to 2026-11-23. support_pin is a demo value for the identity check.",
+  "_note": "Mock customers for the demo: fictional people and companies. Dates are relative to the day the app runs (days_ago, contract_end_in_days) so refund windows stay stable. support_pin is a demo value for the identity check.",
   "users": [
     {
       "customer_id": "cus_free_maya",
@@ -8,10 +8,10 @@
       "support_pin": "482913",
       "tier": "free",
       "contract_status": "active",
-      "contract_end": null,
+      "contract_end_in_days": null,
       "seats": 2,
       "invoices": [
-        { "invoice_id": "inv_1001", "date": "2026-11-20", "amount_usd": 12, "description": "Storage Pack add-on (Nov)", "refunded_usd": 0, "chargeback": false }
+        { "invoice_id": "inv_1001", "days_ago": 3, "amount_usd": 12, "description": "Storage Pack add-on", "refunded_usd": 0, "chargeback": false }
       ]
     },
     {
@@ -21,11 +21,13 @@
       "support_pin": "715204",
       "tier": "pro",
       "contract_status": "active",
-      "contract_end": "2027-03-01",
+      "contract_end_in_days": 98,
       "seats": 6,
       "invoices": [
-        { "invoice_id": "inv_2001", "date": "2026-11-01", "amount_usd": 174, "description": "Pro monthly, 6 seats (Nov)", "refunded_usd": 0, "chargeback": false },
-        { "invoice_id": "inv_2002", "date": "2026-11-01", "amount_usd": 174, "description": "Pro monthly, 6 seats (Nov) duplicate", "refunded_usd": 0, "chargeback": false }
+        { "invoice_id": "inv_2001", "days_ago": 22, "amount_usd": 174, "description": "Pro monthly, 6 seats", "refunded_usd": 0, "chargeback": false },
+        { "invoice_id": "inv_2002", "days_ago": 22, "amount_usd": 174, "description": "Pro monthly, 6 seats (duplicate charge)", "refunded_usd": 0, "chargeback": false },
+        { "invoice_id": "inv_2003", "days_ago": 12, "amount_usd": 1740, "description": "Pro annual upgrade, 6 seats", "refunded_usd": 0, "chargeback": false },
+        { "invoice_id": "inv_2000", "days_ago": 52, "amount_usd": 174, "description": "Pro monthly, 6 seats (previous month)", "refunded_usd": 0, "chargeback": false }
       ]
     },
     {
@@ -35,11 +37,11 @@
       "support_pin": "330587",
       "tier": "enterprise",
       "contract_status": "active",
-      "contract_end": "2027-06-30",
+      "contract_end_in_days": 219,
       "seats": 140,
       "invoices": [
-        { "invoice_id": "inv_3001", "date": "2026-10-15", "amount_usd": 650, "description": "Storage overage (Sep)", "refunded_usd": 0, "chargeback": false },
-        { "invoice_id": "inv_3002", "date": "2026-07-01", "amount_usd": 48720, "description": "Enterprise annual contract", "refunded_usd": 0, "chargeback": false }
+        { "invoice_id": "inv_3001", "days_ago": 39, "amount_usd": 650, "description": "Storage overage", "refunded_usd": 0, "chargeback": false },
+        { "invoice_id": "inv_3002", "days_ago": 145, "amount_usd": 48720, "description": "Enterprise annual contract", "refunded_usd": 0, "chargeback": false }
       ]
     },
     {
@@ -49,10 +51,10 @@
       "support_pin": "904466",
       "tier": "pro",
       "contract_status": "expired",
-      "contract_end": "2026-10-31",
+      "contract_end_in_days": -23,
       "seats": 3,
       "invoices": [
-        { "invoice_id": "inv_4001", "date": "2026-11-01", "amount_usd": 87, "description": "Pro monthly, 3 seats (Nov), billed after contract end", "refunded_usd": 0, "chargeback": false }
+        { "invoice_id": "inv_4001", "days_ago": 22, "amount_usd": 87, "description": "Pro monthly, 3 seats, billed after contract end", "refunded_usd": 0, "chargeback": false }
       ]
     },
     {
@@ -62,10 +64,10 @@
       "support_pin": "268135",
       "tier": "pro",
       "contract_status": "suspended",
-      "contract_end": "2027-01-15",
+      "contract_end_in_days": 53,
       "seats": 4,
       "invoices": [
-        { "invoice_id": "inv_5001", "date": "2026-11-05", "amount_usd": 116, "description": "Pro monthly, 4 seats (Nov), payment failed", "refunded_usd": 0, "chargeback": false }
+        { "invoice_id": "inv_5001", "days_ago": 18, "amount_usd": 116, "description": "Pro monthly, 4 seats, payment failed", "refunded_usd": 0, "chargeback": false }
       ]
     },
     {
@@ -75,10 +77,10 @@
       "support_pin": "559072",
       "tier": "pro",
       "contract_status": "active",
-      "contract_end": "2027-02-10",
+      "contract_end_in_days": 79,
       "seats": 5,
       "invoices": [
-        { "invoice_id": "inv_6001", "date": "2026-11-10", "amount_usd": 145, "description": "Pro monthly, 5 seats (Nov)", "refunded_usd": 145, "chargeback": false }
+        { "invoice_id": "inv_6001", "days_ago": 13, "amount_usd": 145, "description": "Pro monthly, 5 seats", "refunded_usd": 145, "chargeback": false }
       ]
     }
   ]
