@@ -1,0 +1,85 @@
+{
+  "_note": "Mock customers for the demo. Fictional people and companies. Dates relative to 2026-11-23. support_pin is a demo value for the identity check.",
+  "users": [
+    {
+      "customer_id": "cus_free_maya",
+      "name": "Maya Lindqvist",
+      "email": "maya@example.com",
+      "support_pin": "482913",
+      "tier": "free",
+      "contract_status": "active",
+      "contract_end": null,
+      "seats": 2,
+      "invoices": [
+        { "invoice_id": "inv_1001", "date": "2026-11-20", "amount_usd": 12, "description": "Storage Pack add-on (Nov)", "refunded_usd": 0, "chargeback": false }
+      ]
+    },
+    {
+      "customer_id": "cus_pro_omar",
+      "name": "Omar Haddad",
+      "email": "omar@example.com",
+      "support_pin": "715204",
+      "tier": "pro",
+      "contract_status": "active",
+      "contract_end": "2027-03-01",
+      "seats": 6,
+      "invoices": [
+        { "invoice_id": "inv_2001", "date": "2026-11-01", "amount_usd": 174, "description": "Pro monthly, 6 seats (Nov)", "refunded_usd": 0, "chargeback": false },
+        { "invoice_id": "inv_2002", "date": "2026-11-01", "amount_usd": 174, "description": "Pro monthly, 6 seats (Nov) duplicate", "refunded_usd": 0, "chargeback": false }
+      ]
+    },
+    {
+      "customer_id": "cus_ent_northbeam",
+      "name": "Priya Raman (Northbeam Logistics)",
+      "email": "priya@northbeam.example",
+      "support_pin": "330587",
+      "tier": "enterprise",
+      "contract_status": "active",
+      "contract_end": "2027-06-30",
+      "seats": 140,
+      "invoices": [
+        { "invoice_id": "inv_3001", "date": "2026-10-15", "amount_usd": 650, "description": "Storage overage (Sep)", "refunded_usd": 0, "chargeback": false },
+        { "invoice_id": "inv_3002", "date": "2026-07-01", "amount_usd": 48720, "description": "Enterprise annual contract", "refunded_usd": 0, "chargeback": false }
+      ]
+    },
+    {
+      "customer_id": "cus_pro_expired_leo",
+      "name": "Leo Martins",
+      "email": "leo@example.com",
+      "support_pin": "904466",
+      "tier": "pro",
+      "contract_status": "expired",
+      "contract_end": "2026-10-31",
+      "seats": 3,
+      "invoices": [
+        { "invoice_id": "inv_4001", "date": "2026-11-01", "amount_usd": 87, "description": "Pro monthly, 3 seats (Nov), billed after contract end", "refunded_usd": 0, "chargeback": false }
+      ]
+    },
+    {
+      "customer_id": "cus_pro_suspended_ana",
+      "name": "Ana Kowalski",
+      "email": "ana@example.com",
+      "support_pin": "268135",
+      "tier": "pro",
+      "contract_status": "suspended",
+      "contract_end": "2027-01-15",
+      "seats": 4,
+      "invoices": [
+        { "invoice_id": "inv_5001", "date": "2026-11-05", "amount_usd": 116, "description": "Pro monthly, 4 seats (Nov), payment failed", "refunded_usd": 0, "chargeback": false }
+      ]
+    },
+    {
+      "customer_id": "cus_pro_refunded_sam",
+      "name": "Sam Okafor",
+      "email": "sam@example.com",
+      "support_pin": "559072",
+      "tier": "pro",
+      "contract_status": "active",
+      "contract_end": "2027-02-10",
+      "seats": 5,
+      "invoices": [
+        { "invoice_id": "inv_6001", "date": "2026-11-10", "amount_usd": 145, "description": "Pro monthly, 5 seats (Nov)", "refunded_usd": 145, "chargeback": false }
+      ]
+    }
+  ]
+}
