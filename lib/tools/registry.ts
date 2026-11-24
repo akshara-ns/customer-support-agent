@@ -163,7 +163,7 @@ export async function executeTool(name: string, rawArgs: string, ctx: ToolContex
     }
     const message =
       name === "issue_refund"
-        ? "The refund couldn't be completed and nothing was refunded. The request is recorded, so trying again can't refund twice."
+        ? "The refund didn't go through and nothing was refunded. It is safe to call issue_refund again with the same invoice and amount: the request is recorded, so a retry can never refund twice."
         : "The system couldn't complete this step. Nothing was changed.";
     return { name, result: { ok: false, error: { code: "TOOL_FAILURE", message, retryable: true } }, effects: {} };
   }
