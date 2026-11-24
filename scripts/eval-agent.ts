@@ -123,6 +123,7 @@ async function main(): Promise<void> {
   const { modelActionChecker } = await import("@/lib/guardrails/action-claims");
   const { checkFinalReply } = await import("@/lib/guardrails/final-reply");
   const { writeSection, claimsApproval } = await import("../evals/lib");
+  const { rate } = await import("../evals/stats");
 
   const lines: string[] = [];
   lines.push(`## Live agent scenarios (\`npm run eval:agent\`, ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC)`);
@@ -186,12 +187,21 @@ async function main(): Promise<void> {
     }
     lines.push("");
     const runs = SCENARIOS.length * repeat;
-    lines.push(`### \`${model}\`: ${pass}/${runs} runs pass${repeat > 1 ? ` (${repeat} runs per scenario)` : ""}, estimated cost $${totalCost.toFixed(4)}`);
+    const scenarios = SCENARIOS.filter((x) => !only || only.has(x.id));
+    const allPassed = scenarios.filter((sc) => (passes.get(sc.id) ?? 0) === repeat).length;
+    lines.push(`### \`${model}\`: ${rate(pass, runs)} runs pass${repeat > 1 ? ` (${repeat} runs per scenario)` : ""}, estimated cost $${totalCost.toFixed(4)}`);
+    if (repeat > 1) {
+      lines.push("");
+      lines.push(
+        `**pass^${repeat}** (a scenario counts only if all ${repeat} of its runs pass): ${rate(allPassed, scenarios.length)} scenarios. ` +
+          `Per-run pass rate ${(pass / runs).toFixed(3)}; at that rate a scenario would pass all ${repeat} runs with probability ${((pass / runs) ** repeat).toFixed(3)}.`,
+      );
+    }
     lines.push("");
     if (repeat > 1) {
       lines.push(`| scenario | pass rate |`);
       lines.push(`|---|---|`);
-      for (const sc of SCENARIOS) lines.push(`| ${sc.id}: ${sc.title} | ${passes.get(sc.id) ?? 0}/${repeat} |`);
+      for (const sc of SCENARIOS.filter((x) => !only || only.has(x.id))) lines.push(`| ${sc.id}: ${sc.title} | ${rate(passes.get(sc.id) ?? 0, repeat)} |`);
       lines.push("");
     }
     lines.push(`| id | scenario | chain | tools called | violations attempted / blocked-failures | refunds issued | tickets | false claims corrected | approval claim in reply | ms | result |`);
