@@ -148,7 +148,7 @@ What was done, what was tried and dropped, problems found, AI use.
 - Every critical/major finding was reproduced before fixing: failing unit tests (`tests/review-repro.test.ts`), a live-DB race test (`tests/ledger.int.test.ts`, failed before migration 0007), and a live IDOR script (`scripts/repro-idor.sh`, B read A's data before; 403 after).
 - Fixed: README (critical), one-active-refund-per-invoice (unique index + stale pending retired), cent rounding, session ownership cookie, PIN redaction in the log, per-account lockout, strict credential formats, session-aware claim gate + paraphrases, voice auto-reconnect, lazy/cached health, friendly step text, unknown tool name, dead stubs, CI.
 - X-Forwarded-For spoofing tested live: not exploitable on Vercel (spoofed headers still rate limited); hardened anyway.
-- Tests 90; live scenarios 6/6 with 0 corrections; CI green.
+- Tests 89; live scenarios 6/6 with 0 corrections; CI green.
 
 **Problems found**
 - My G3 paraphrase pattern rewrote correct policy text (seen in the live scenario run); narrowed it, with a regression test.
