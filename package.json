@@ -17,7 +17,8 @@
     "debug:query": "tsx --conditions=react-server scripts/debug-query.ts",
     "eval:agent": "tsx --conditions=react-server scripts/eval-agent.ts",
     "demo:reset": "tsx scripts/demo-reset.ts",
-    "voice:clips": "tsx scripts/make-voice-clips.ts"
+    "voice:clips": "tsx scripts/make-voice-clips.ts",
+    "eval:heldout": "tsx --conditions=react-server scripts/eval-guardrails-heldout.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.1",
