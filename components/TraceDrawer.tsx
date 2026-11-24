@@ -56,6 +56,7 @@ export const FAULT_OPTIONS = [
   { value: "llm_rate_limit", label: "LLM 429 rate limit (2 hits, then recovers)" },
   { value: "tool_failure", label: "Refund tool fails after recording the request" },
   { value: "retrieval_down", label: "Knowledge base / embeddings unavailable" },
+  { value: "stream_drop", label: "Chat stream drops mid-turn (client resumes)" },
 ] as const;
 
 const ms = (v: number | null | undefined) => (v === null || v === undefined ? "–" : v >= 1000 ? `${(v / 1000).toFixed(2)}s` : `${v}ms`);

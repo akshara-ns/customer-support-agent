@@ -162,6 +162,11 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
               </div>
             )}
             <EscalationCard m={m} onCreate={() => void send("Please create an escalation ticket so a human can help with this.")} />
+            {m.reconnecting && (
+              <div className="retry-banner small" role="status">
+                <span className="spinner" /> Connection dropped. Reconnecting to the stream from event {m.reconnecting.after}… (attempt {m.reconnecting.attempt})
+              </div>
+            )}
             {m.retrying && (
               <div className="retry-banner small" role="status">
                 <span className="spinner" /> The assistant is busy, retrying… (attempt {m.retrying.attempt} of {m.retrying.attempts}
@@ -196,6 +201,7 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
               <p className="meta muted small">
                 {(m.totals.durationMs / 1000).toFixed(1)}s{m.totals.ttftMs !== undefined ? ` · first token ${(m.totals.ttftMs / 1000).toFixed(1)}s` : ""} ·{" "}
                 {m.totals.tokensIn + m.totals.tokensOut} tokens · est. ${m.totals.costUsd.toFixed(4)}
+                {m.resumedAfter !== undefined ? ` · stream resumed after event ${m.resumedAfter}` : ""}
               </p>
             )}
           </div>

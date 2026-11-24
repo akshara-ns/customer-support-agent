@@ -19,6 +19,10 @@ export interface ChatMessage {
   steps: Step[];
   escalation?: { kind: "ticket" | "suggested"; reason: string; ticket?: TicketSummary };
   error?: { code: ErrorCode; message: string; retryable: boolean; tool?: string };
+  /** Shown while the client resumes a dropped stream from the last event it received. */
+  reconnecting?: { attempt: number; after: number };
+  /** The stream was resumed after this event number (no gaps, no duplicates). */
+  resumedAfter?: number;
   /** Shown while the server retries a transient model error. */
   retrying?: { attempt: number; attempts: number; reason: ErrorCode };
   streaming?: boolean;
@@ -164,11 +168,41 @@ export function useChat() {
         { id: newId(), role: "user", text, steps: [] },
         { id: assistantId, role: "assistant", text: "", steps: [], streaming: true, spans: [] },
       ]);
+      // Client-side demo fault: cut the stream mid-turn to exercise resume (not sent to the server).
+      const dropStream = simulate === "stream_drop";
+      const serverFault = dropStream ? null : simulate;
+      let lastSeq = 0;
+      let gotDone = false;
+      const handle = (e: SseEvent) => {
+        if (e.seq <= lastSeq) return; // replayed event we already have: no duplicates
+        lastSeq = e.seq;
+        switch (e.type) {
+          case "token":
+            update(assistantId, (m) => ({ ...m, text: m.text + e.text, retrying: undefined, reconnecting: undefined }));
+            break;
+          case "retrying":
+          case "step_started":
+          case "step_completed":
+          case "escalation":
+          case "error":
+            update(assistantId, (m) => ({ ...applyAgentEvent(m, e), reconnecting: undefined }));
+            break;
+          case "trace":
+            update(assistantId, (m) => ({ ...m, spans: [...(m.spans ?? []), e.span] }));
+            break;
+          case "done":
+            gotDone = true;
+            update(assistantId, (m) => ({ ...m, streaming: false, totals: e.totals, retrying: undefined, reconnecting: undefined }));
+            break;
+        }
+      };
       try {
+        const ac = new AbortController();
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, message: text, ...(simulate ? { simulate } : {}) }),
+          body: JSON.stringify({ sessionId, message: text, ...(serverFault ? { simulate: serverFault } : {}) }),
+          signal: ac.signal,
         });
         if (!res.ok || !res.body) {
           const body = (await res.json().catch(() => ({}))) as { message?: string };
@@ -180,31 +214,32 @@ export function useChat() {
           }));
           return;
         }
-        for await (const e of readSse(res.body)) {
-          switch (e.type) {
-            case "token":
-              update(assistantId, (m) => ({ ...m, text: m.text + e.text, retrying: undefined }));
-              break;
-            case "retrying":
-              update(assistantId, (m) => applyAgentEvent(m, e));
-              break;
-            case "step_started":
-            case "step_completed":
-            case "escalation":
-            case "error":
-              update(assistantId, (m) => applyAgentEvent(m, e));
-              break;
-            case "trace":
-              update(assistantId, (m) => ({ ...m, spans: [...(m.spans ?? []), e.span] }));
-              break;
-            case "done":
-              update(assistantId, (m) => ({ ...m, streaming: false, totals: e.totals, retrying: undefined }));
-              break;
+        const streamId = res.headers.get("x-stream-id");
+        try {
+          for await (const e of readSse(res.body)) {
+            handle(e);
+            if (dropStream && e.type === "step_completed") ac.abort(); // simulated network drop
           }
+        } catch {
+          /* dropped: resume below */
         }
+        // Stream ended without `done`: reconnect with the last event number; the server replays the rest.
+        for (let attempt = 1; !gotDone && streamId && attempt <= 3; attempt++) {
+          const after = lastSeq;
+          update(assistantId, (m) => ({ ...m, reconnecting: { attempt, after } }));
+          try {
+            const r = await fetch(`/api/chat/stream?streamId=${streamId}&after=${after}`, { cache: "no-store" });
+            if (r.ok && r.body) for await (const e of readSse(r.body)) handle(e);
+          } catch {
+            await new Promise((x) => setTimeout(x, 500 * attempt));
+          }
+          if (gotDone) update(assistantId, (m) => ({ ...m, resumedAfter: after }));
+        }
+        if (!gotDone) throw new Error("stream lost");
       } catch {
         update(assistantId, (m) => ({
           ...m,
+          reconnecting: undefined,
           error: { code: "internal", message: "Connection lost. Check your network and retry.", retryable: true },
         }));
       } finally {

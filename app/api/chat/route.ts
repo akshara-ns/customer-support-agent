@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { z } from "zod";
 import { RATE_LIMITS } from "@/lib/config";
 import { openAIAgentModel } from "@/lib/agent/openai-model";
@@ -7,6 +8,7 @@ import { errorResponse, log, newRequestId } from "@/lib/log";
 import { persistTrace } from "@/lib/observability/pg-traces";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { pgEventStore } from "@/lib/session/pg-store";
+import { StreamLog } from "@/lib/session/stream-log";
 import { productionToolDeps } from "@/lib/voice/deps";
 import type { AgentEvent, SseEvent } from "@/lib/types";
 
@@ -39,13 +41,21 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const encoder = new TextEncoder();
+  // Every numbered event also goes to the stream log, so a dropped client can resume from its last seq.
+  const streamId = crypto.randomUUID();
+  const streamLog = new StreamLog(streamId, sessionId);
+  await pgEventStore.ensureSession(sessionId);
+  let resolveTurn: () => void = () => {};
+  // Keep the function alive until the turn finishes, even if the client disconnects mid-stream.
+  after(() => new Promise<void>((r) => (resolveTurn = r)));
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let seq = 0;
       let closed = false;
       const send = (e: AgentEvent) => {
-        if (closed) return;
         const numbered: SseEvent = { ...e, seq: ++seq };
+        streamLog.push(numbered);
+        if (closed) return;
         try {
           controller.enqueue(encoder.encode(`id: ${seq}\nevent: ${e.type}\ndata: ${JSON.stringify(numbered)}\n\n`));
         } catch {
@@ -73,8 +83,13 @@ export async function POST(request: Request): Promise<Response> {
         send({ type: "error", code: "internal", message: "Something went wrong on our side. Please try again.", retryable: true });
         send({ type: "done", turnId: "", state: "failed", totals: { durationMs: 0, tokensIn: 0, tokensOut: 0, costUsd: 0 } });
       } finally {
+        await streamLog.close();
         if (!closed) controller.close();
+        resolveTurn();
       }
+    },
+    cancel() {
+      // Client went away; the turn keeps running (see after() above) and stays resumable.
     },
   });
 
@@ -85,6 +100,7 @@ export async function POST(request: Request): Promise<Response> {
       Connection: "keep-alive",
       "X-Accel-Buffering": "no",
       "x-request-id": requestId,
+      "x-stream-id": streamId,
     },
   });
 }
