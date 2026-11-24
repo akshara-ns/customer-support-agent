@@ -1,11 +1,19 @@
+import { Chat } from "@/components/Chat";
+import { DemoUsers } from "@/components/DemoUsers";
 import { HealthStatus } from "@/components/HealthStatus";
+import { demoUsers } from "@/lib/tools/customers";
 
 export default function Home() {
   return (
-    <main>
-      <h1>Support Agent</h1>
-      <p className="muted">Streaming chat and live voice support. Scaffold build: backend health below.</p>
-      <HealthStatus />
+    <main className="layout">
+      <Chat />
+      <div className="side">
+        <DemoUsers users={demoUsers()} />
+        <details className="small">
+          <summary>Backend health</summary>
+          <HealthStatus />
+        </details>
+      </div>
     </main>
   );
 }
