@@ -1,6 +1,6 @@
 import "server-only";
 import { GUARDRAILS } from "@/lib/config";
-import { assessRetrievalConfidence, type RetrievalConfidence } from "@/lib/guardrails/confidence";
+import { assessRetrievalConfidence, confidenceLevel, docMargin, type ConfidenceLevel, type RetrievalConfidence } from "@/lib/guardrails/confidence";
 import { checkClaims, checkGrounding, type ClaimChecker, type GroundingResult } from "@/lib/guardrails/grounding";
 import { trimUnsupported } from "@/lib/guardrails/partial";
 import { Trace } from "@/lib/observability/trace";
@@ -16,6 +16,10 @@ export interface GuardedAnswer {
   draft: string | null;
   /** Sentences removed because they carried unsupported side details (partial grounding). */
   removed?: string[];
+  /** HIGH / MEDIUM / LOW (see confidence.ts); raw scores stay in `retrieval` and the trace. */
+  level: ConfidenceLevel;
+  /** Best-minus-second-best document score. */
+  docMargin: number;
   retrieval: { chunks: RetrievedChunk[]; confidence: RetrievalConfidence };
   grounding: GroundingResult | null;
   trace: Trace;
@@ -55,7 +59,10 @@ export async function answerWithGuardrails(opts: GuardOptions, trace = new Trace
     return c;
   });
   const evidence = evidenceOf(chunks);
-  const base = { retrieval: { chunks, confidence }, trace };
+  const margin = docMargin(chunks);
+  const levelOf = (escalated: boolean, partial = false) =>
+    confidenceLevel({ escalated, partial, topScore: confidence.topScore, docMargin: margin, highTop1: GUARDRAILS.highConfidenceTop1, highDocMargin: GUARDRAILS.highConfidenceDocMargin });
+  const base = { retrieval: { chunks, confidence }, trace, docMargin: margin };
   const escalate = (
     reason: Extract<GuardrailDecision, { escalate: true }>["reason"],
     detail: string,
@@ -65,6 +72,7 @@ export async function answerWithGuardrails(opts: GuardOptions, trace = new Trace
     answer: null,
     draft: null,
     grounding: null,
+    level: "low",
     ...base,
     ...extra,
   });
@@ -79,6 +87,7 @@ export async function answerWithGuardrails(opts: GuardOptions, trace = new Trace
       answer: null,
       draft: null,
       grounding: null,
+      level: levelOf(false),
       ...base,
     };
   }
@@ -123,6 +132,7 @@ export async function answerWithGuardrails(opts: GuardOptions, trace = new Trace
         draft: draft.text,
         removed: partial.removed,
         grounding,
+        level: levelOf(false, true),
         ...base,
       };
     }
@@ -136,6 +146,7 @@ export async function answerWithGuardrails(opts: GuardOptions, trace = new Trace
     answer: draft.text,
     draft: draft.text,
     grounding,
+    level: levelOf(false),
     ...base,
   };
 }

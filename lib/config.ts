@@ -50,6 +50,13 @@ export const GUARDRAILS = {
    * `npm run eval:guardrails` on the calibration split; see evals/RESULTS.md.
    */
   similarityThreshold: 0.28,
+  /**
+   * HIGH confidence needs top-1 ≥ this AND a doc-level margin ≥ highConfidenceDocMargin. Chosen on the v1
+   * calibration split only (Phase 10B): every should-escalate item there had a doc margin ≤ 0.094 and most
+   * answerable ones ≥ 0.103, so 0.10 separates them; validated on blind items in evals/CONFIDENCE.md.
+   */
+  highConfidenceTop1: 0.45,
+  highConfidenceDocMargin: 0.1,
   /** Per-call timeout for the agent model (streams a whole reply). */
   llmTimeoutMs: 20_000,
   /** Per-call timeout for calls inside tools and checks (embeddings, answer, grounding, claim check). */

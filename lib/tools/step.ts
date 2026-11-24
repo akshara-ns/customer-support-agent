@@ -43,7 +43,7 @@ export function summarizeOutcome(o: ToolOutcome): string {
     case "verify_identity":
       return `Verified: ${o.result.data.tier} tier, contract ${o.result.data.contract_status}`;
     case "get_policy":
-      if (o.result.data.status === "answered") return `Found policy answer (confidence ${o.result.data.confidence})`;
+      if (o.result.data.status === "answered") return o.result.data.level === "medium" ? "Found policy answer (medium confidence)" : "Found policy answer (high confidence)";
       if (o.result.data.status === "needs_verification") return "Depends on your plan: verification needed";
       return o.result.data.ticket ? `Not covered reliably: handed to a person (${o.result.data.ticket.ticketNumber})` : "Not covered by policy: escalation offered";
     case "issue_refund":

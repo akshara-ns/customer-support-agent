@@ -16,7 +16,17 @@ export function policySearchWith(answer: typeof Pipeline): PolicySearch {
     async search(question, tier, trace) {
       const r = await answer({ query: question, tier: tier ?? undefined, generalOnly: tier === null }, trace);
       if (!r.decision.escalate && r.answer) {
-        return { status: "answered", answer: r.answer, citations: r.grounding?.citations.cited ?? [], confidence: round(r.decision.confidence) };
+        const level = r.level === "high" ? "high" : "medium";
+        return {
+          status: "answered",
+          answer: r.answer,
+          citations: r.grounding?.citations.cited ?? [],
+          confidence: round(r.decision.confidence),
+          level,
+          ...(level === "medium"
+            ? { next_step: "Medium confidence: give this answer, say it's based on the closest policy section, and offer a person if they need it confirmed." }
+            : {}),
+        };
       }
       const escalation = {
         status: "needs_escalation" as const,

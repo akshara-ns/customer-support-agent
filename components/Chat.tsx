@@ -56,7 +56,7 @@ function EscalationCard({ m, onCreate }: { m: ChatMessage; onCreate: () => void 
         </span>
         {e.confidence !== undefined && (
           <span className="small">
-            Reason: {escalationReasonText(e.reason)} · retrieval confidence {e.confidence.toFixed(2)}
+            Reason: {escalationReasonText(e.reason)} · confidence: low
           </span>
         )}
       </div>
@@ -67,7 +67,7 @@ function EscalationCard({ m, onCreate }: { m: ChatMessage; onCreate: () => void 
       <strong>Not confident enough to answer</strong>
       <span>
         The knowledge base doesn&apos;t cover this reliably ({escalationReasonText(e.reason)}
-        {e.confidence !== undefined && `, confidence ${e.confidence.toFixed(2)}`}). Verify your account to have a person pick it up.
+        {e.confidence !== undefined && ", confidence: low"}). Verify your account to have a person pick it up.
       </span>
       <button type="button" onClick={onCreate}>
         Create a ticket for a human

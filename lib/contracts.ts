@@ -91,7 +91,16 @@ export interface VerifyOutput {
 }
 
 export type PolicyAnswer =
-  | { status: "answered"; answer: string; citations: string[]; confidence: number }
+  | {
+      status: "answered";
+      answer: string;
+      citations: string[];
+      /** Raw top-1 cosine (drawer/debug only; customers see `level`). */
+      confidence: number;
+      /** HIGH answers as is; MEDIUM is answered with a hedge (see next_step). */
+      level?: "high" | "medium";
+      next_step?: string;
+    }
   | {
       status: "needs_escalation";
       reason: string;
