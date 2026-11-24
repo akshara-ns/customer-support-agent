@@ -13,6 +13,7 @@ This is a standalone project with its own git repo. It is unrelated to any other
 - No secrets in git or in the browser. .env is gitignored; .env.example is kept current.
 - Keep docs/LOG.md: what was done, what was tried and dropped, problems found, AI use.
 - Ask before adding a paid service, changing the stack, or anything expected to take more than 30 minutes.
+- No paid services or plan upgrades; stop and ask if anything requires billing.
 
 ## Commits
 - Never add yourself as an author or co-author: no "Co-Authored-By" trailers, no "Generated with Claude Code" lines, in commits or PR descriptions.
