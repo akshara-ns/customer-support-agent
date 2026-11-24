@@ -114,3 +114,29 @@ What was done, what was tried and dropped, problems found, AI use.
 
 **AI use**
 - Claude Code (Opus) wrote the voice server, client, tests, clips and docs, and ran every check in the built-in browser on the live URL. A web-fetch subagent read the current OpenAI Realtime docs.
+
+## 2026-11-23 · Block 7–8.5: resilience + observability drawer + hardening (started 21:25)
+
+**Done**
+- Failure injection at real boundaries (`lib/faults.ts`, AsyncLocalStorage, one request): LLM timeout, LLM 429, refund failure after recording, retrieval down, plus a client-side stream drop. Drawer control, one-shot.
+- Agent retries with backoff + jitter honouring Retry-After (`lib/agent/retry.ts`), `retrying` SSE events, no retry once text streamed; typed fallbacks per failure; per-failure UI states with matching actions.
+- Traces persisted (redacted) for chat and voice; `/api/sessions/:id/traces` report (span tree, TTFT, e2e, per-tool, tokens incl. cached, estimated cost, guardrails, corrections, retries, p50/p95); drawer UI with copy JSON.
+- Stream resume via `stream_events` + `/api/chat/stream` + client reconnect/de-dup; the turn survives client disconnect (`after()`).
+- Hardening: typed errors with request ids on all routes, structured JSON logs, security headers + CSP (voice still works), error boundaries, health with embeddings/LLM checks, realtime `max_output_tokens`.
+- Tests: 76 (new: resilience suite, report builder). Live checks: evals/RESILIENCE_CHECKS.md, all pass. Chat scenarios re-run after prompt changes: 6/6.
+
+**Problems found**
+- The model refused to retry a failed refund because the failure text read as "don't retry"; reworded and added a prompt rule; re-checked live (exactly one refund).
+- Drawer timings were whole seconds: the Neon driver returns timestamptz as `Date` and `Date.parse(date)` drops ms. Fixed, with a test that fails without the fix.
+- The redactor hid error codes (masked a `code` key); PINs are caught by pattern instead. Rows stored earlier keep "[redacted]".
+- Commit `Fix drawer timings and error codes` contains only the redaction change: my edit script stopped partway and the `;`-chained commit still ran. The next commit (`Keep millisecond precision in drawer timings`) is the timing fix. Not rewritten, since it's already pushed.
+- The browser pane served cached JS after a deploy; reloaded with a cache-busting query.
+- Demo data reset twice on prod (my own test refunds) so checks could reuse invoices.
+
+**Limitations**
+- Voice LLM faults can't be injected (the realtime model is called browser-direct); voice covers tool and retrieval faults.
+- The stream drop is a client-side abort, not a real network cut.
+- Voice session length is enforced client-side (D44).
+
+**AI use**
+- Claude Code (Opus) wrote the fault injection, retries, trace persistence, drawer, stream resume and hardening, and ran all live checks in the built-in browser.

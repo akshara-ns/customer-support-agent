@@ -26,3 +26,4 @@ Any block that runs over is reported immediately (see CLAUDE.md).
 | 1–3 RAG + guardrail + eval | 120 min | 2026-11-23 19:38 | 2026-11-23 20:03 | on time; deployed and verified live |
 | 3–5 Agent loop + tools + SSE chat | 120 min | 2026-11-23 20:06 | 2026-11-23 20:31 | on time; first items took ~5 min (not over, as I first misreported) |
 | 5–7 Voice | 120 min | 2026-11-23 20:36 | 2026-11-23 21:13 | on time; no cut rule needed |
+| 7–8.5 Resilience + rate limit + observability drawer | 90 min | 2026-11-23 21:25 | 2026-11-23 21:48 | on time; nothing cut (stream resume and p50/p95 included) |

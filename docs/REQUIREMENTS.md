@@ -18,10 +18,10 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done and demonstrated.
 | 1.4 | Active audio waveform feedback (mic + agent) | V | 25% | UI: waveform/level meter moves with speech; Loom | [x] two live waveforms (caller + agent, AnalyserNode) |
 | 1.5 | Live transcripts of both sides in voice mode | V | 25% | UI: transcript lines appear while speaking; Loom | [x] live caller transcription deltas + agent transcript deltas in the message list |
 | 1.6 | Interruption handling (barge-in cancels agent audio) | V | 25% | Loom: interrupt mid-answer, agent stops and responds; UI: "interrupted" marker | [x] barge-in: muted 0 ms after speech_started (~0.63 s after onset), truncation confirmed, 'interrupted' marker; VOICE_CHECKS #2 |
-| 1.7 | Collapsible observability drawer: prompt traces | P/C | 15%/25% | UI: drawer lists trace spans with prompt/tool I/O | [ ] |
-| 1.8 | Drawer: end-to-end latency metrics (per step + total, TTFT) | P | 15% | UI: latency numbers per turn | [~] trace spans record per-step latency (lib/observability/trace.ts); UI later |
-| 1.9 | Drawer: token usage | P | 15% | UI: in/out tokens per turn and session | [~] trace spans record tokens; UI later |
-| 1.10 | Drawer: estimated API cost | P | 15% | UI: $ per turn and session; test: cost calculator | [~] trace spans estimate cost from lib/config.ts prices; UI later |
+| 1.7 | Collapsible observability drawer: prompt traces | P/C | 15%/25% | UI: drawer lists trace spans with prompt/tool I/O | [x] drawer: per-turn span tree with prompts (redacted), tool I/O, guardrails, corrections; copy JSON |
+| 1.8 | Drawer: end-to-end latency metrics (per step + total, TTFT) | P | 15% | UI: latency numbers per turn | [x] TTFT, e2e, per-tool durations, session p50/p95, voice response latency |
+| 1.9 | Drawer: token usage | P | 15% | UI: in/out tokens per turn and session | [x] tokens in/out/cached per call and per turn/session |
+| 1.10 | Drawer: estimated API cost | P | 15% | UI: $ per turn and session; test: cost calculator | [x] estimated cost per call/turn/session incl. voice, pricing date + source shown |
 
 ## 2. RAG & grounding engine
 
@@ -47,18 +47,18 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done and demonstrated.
 | 3.6 | Policy enforced in tool code (refund limits, tier, identity, contract) not prompts | A/P | 35%/15% | test: tool refuses even when LLM asks | [x] lib/tools/policy.ts; 16 tool tests; live S2/S3/S5/S6 refusals by code |
 | 3.7 | Stream live status when a tool starts/completes | V/A | 25%/35% | UI: step chips; SSE event log | [x] SSE step events per tool |
 | 3.8 | Voice tool calls go through the same backend tool + guardrail endpoint | A/C | 35%/25% | Loom: voice refund shows in same trace drawer; test: endpoint | [x] /api/voice/tool runs the same runToolStep; parity unit test; VOICE_CHECKS #1, #3 |
-| 3.9 | Routing (tool choice / escalation decision) has a measurable eval | A | 35% | eval: routing accuracy over labeled turns | [~] 6 live scenarios per model in evals/AGENT_RESULTS.md (tool chain + violations + false claims) |
+| 3.9 | Routing (tool choice / escalation decision) has a measurable eval | A | 35% | eval: routing accuracy over labeled turns | [x] 6 live scenarios per change (latest 6/6) in evals/AGENT_RESULTS.md |
 
 ## 4. Resilience & state
 
 | # | Requirement | Cat | Wt | How we demonstrate it | Status |
 |---|---|---|---|---|---|
-| 4.1 | Graceful fallback UI on upstream LLM timeout | P | 15% | UI: retry/fallback message; test: timeout path | [~] ModelError → typed error event + graceful reply + Retry button; tested with a scripted model; fault toggle in phase 4 |
-| 4.2 | Graceful fallback on LLM rate limit (429) | P | 15% | UI: rate-limit banner with retry; test | [~] 429 from OpenAI → llm_rate_limited event; tested; UI banner + retry |
-| 4.3 | Graceful handling of simulated tool failure mid-conversation | P/A | 15%/35% | UI: failed step chip + recovery; Loom (fault-injection toggle) | [~] TOOL_FAILURE typed error, never a false success (ledger-failure test); fault injection toggle in phase 4 |
+| 4.1 | Graceful fallback UI on upstream LLM timeout | P | 15% | UI: retry/fallback message; test: timeout path | [x] real 1 ms SDK timeout → 3 attempts → typed fallback + UI state; next turn OK (RESILIENCE_CHECKS #4) |
+| 4.2 | Graceful fallback on LLM rate limit (429) | P | 15% | UI: rate-limit banner with retry; test | [x] real 429 with Retry-After → visible retries → answer (RESILIENCE_CHECKS #3) |
+| 4.3 | Graceful handling of simulated tool failure mid-conversation | P/A | 15%/35% | UI: failed step chip + recovery; Loom (fault-injection toggle) | [x] refund fails after recording → typed fallback → retry = exactly one refund; voice spoken fallback (#2, #6) |
 | 4.4 | Consistent multi-turn session memory across text and voice | A/V | 35%/25% | Loom: switch chat→voice, agent remembers; DB rows share session_id | [x] chat → voice → chat in one session_events log; history + verified state replayed; VOICE_CHECKS #4, #5 |
 | 4.5 | Rate limiting on our own API | P | 15% | test/curl: 429 after N requests; UI message | [x] Postgres fixed-window limits: rag answer 10/10 min/IP + 200/day, chat 30/10 min/IP + 600/day; 429 verified live |
-| 4.6 | Deployment stability | P | 15% | live URL; /api/health ok | [~] live, voice checks passed on prod; final stability pass in phase 5 |
+| 4.6 | Deployment stability | P | 15% | live URL; /api/health ok | [x] live on Vercel; health checks DB/embeddings/LLM; security headers; error boundaries |
 
 ## 5. Code quality
 
