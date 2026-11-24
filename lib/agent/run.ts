@@ -3,7 +3,7 @@
  * code runs the tool (preconditions + policy) → repeat, at most MAX_TOOL_STEPS tools → reply
  * streamed through the claim gate. Every step is logged, traced and emitted as an event.
  */
-import { ClaimGate, type TurnActions } from "@/lib/guardrails/claims";
+import { ClaimGate, type ActionChecker, type TurnActions } from "@/lib/guardrails/claims";
 import { AgentMachine, type AgentState } from "@/lib/agent/machine";
 import { ModelError, type AgentModel } from "@/lib/agent/model";
 import { DEFAULT_RETRY, withRetry } from "@/lib/agent/retry";
@@ -34,6 +34,8 @@ export interface TurnDeps {
   traceSink?: (trace: Trace, channel: Channel) => Promise<void>;
   /** Test hook: retry delays. */
   sleep?: (ms: number) => Promise<void>;
+  /** Layer-2 action-claim check (model extraction vs the tool log). Without it only the regex layer runs. */
+  actionChecker?: ActionChecker;
 }
 
 const FALLBACK: Record<string, string> = {
@@ -80,7 +82,17 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
   // Seeded with refunds/tickets from earlier turns, so true references to them aren't "corrected".
   const earlier = actionsForTurn(history);
   const actions: TurnActions = { refunds: [...earlier.refunds], refundErrors: [], tickets: [...earlier.tickets] };
-  const gate = new ClaimGate(() => actions);
+  const gate = new ClaimGate(() => actions, Boolean(deps.actionChecker));
+  const checker: ActionChecker | undefined = deps.actionChecker
+    ? (text, a) =>
+        trace.span("guardrail", "action_claim_check", { layer: 2 }, async (s) => {
+          const r = await deps.actionChecker!(text, a);
+          const u = r as Partial<{ model: string; tokensIn: number; tokensOut: number }>;
+          if (u.model) s.usage({ model: u.model, tokensIn: u.tokensIn ?? 0, tokensOut: u.tokensOut ?? 0 });
+          s.output(r);
+          return r;
+        })
+    : undefined;
   const toolsCalled: string[] = [];
   let reply = "";
   let iterationText = "";
@@ -142,7 +154,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
 
       if (turn.toolCalls.length === 0 || toolChoice === "none") {
         go("checking_claims");
-        say(gate.flush());
+        say(await gate.settle(checker, (err) => trace.mark("guardrail", "action_claim_check_failed", { error: String(err) })));
         if (gate.corrections.length) trace.mark("guardrail", "claim_check", { corrections: gate.corrections });
         go("responding");
         await log({ type: "assistant_message", text: iterationText.trim(), corrections: gate.corrections.map((c) => c.reason) });

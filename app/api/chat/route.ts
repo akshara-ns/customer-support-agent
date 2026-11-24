@@ -10,7 +10,7 @@ import { persistTrace } from "@/lib/observability/pg-traces";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { pgEventStore } from "@/lib/session/pg-store";
 import { StreamLog } from "@/lib/session/stream-log";
-import { productionToolDeps } from "@/lib/server/deps";
+import { productionActionChecker, productionToolDeps } from "@/lib/server/deps";
 import { buildTranscript } from "@/lib/server/transcript";
 import type { TranscriptResponse } from "@/lib/contracts";
 import type { AgentEvent, SseEvent } from "@/lib/types";
@@ -76,6 +76,7 @@ export async function POST(request: Request): Promise<Response> {
               events: pgEventStore,
               tools: productionToolDeps(),
               traceSink: (trace, channel) => persistTrace(sessionId, trace, channel),
+              actionChecker: productionActionChecker,
             },
             send,
           ),

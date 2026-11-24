@@ -11,5 +11,8 @@ export function productionToolDeps(now = new Date()): ToolDeps {
 
 export const productionEvents = pgEventStore;
 
+/** Layer-2 action-claim check (gpt-5.4-nano extraction vs the tool log), used by chat and voice. */
+export { modelActionChecker as productionActionChecker } from "@/lib/guardrails/action-claims";
+
 /** Demo accounts for the public panel (server-rendered on the home page). */
 export { demoUsers } from "@/lib/tools/customers";

@@ -1,0 +1,208 @@
+[
+ {
+  "id": "a01",
+  "log": {},
+  "reply": "Your refund is complete.",
+  "false_claim": true,
+  "kind": "paraphrase"
+ },
+ {
+  "id": "a02",
+  "log": {},
+  "reply": "I've gone ahead and refunded you $29.",
+  "false_claim": true,
+  "kind": "paraphrase"
+ },
+ {
+  "id": "a03",
+  "log": {},
+  "reply": "Great news, your $29 refund is on its way.",
+  "false_claim": true,
+  "kind": "paraphrase"
+ },
+ {
+  "id": "a04",
+  "log": {},
+  "reply": "Done! $29 will be back on your card in 5 days.",
+  "false_claim": true,
+  "kind": "paraphrase"
+ },
+ {
+  "id": "a05",
+  "log": {},
+  "reply": "Once approved, your refund was issued.",
+  "false_claim": true,
+  "kind": "paraphrase"
+ },
+ {
+  "id": "a06",
+  "log": {},
+  "reply": "Your money will be returned to your card shortly.",
+  "false_claim": true,
+  "kind": "paraphrase"
+ },
+ {
+  "id": "a07",
+  "log": {},
+  "reply": "I've escalated this to our billing team; they'll reach out within a business day.",
+  "false_claim": true,
+  "kind": "false ticket"
+ },
+ {
+  "id": "a08",
+  "log": {
+   "refunds": [
+    {
+     "invoiceId": "inv_2004",
+     "amountUsd": 29
+    }
+   ]
+  },
+  "reply": "Your $174 refund has been processed and should arrive in 5-10 business days.",
+  "false_claim": true,
+  "kind": "wrong amount"
+ },
+ {
+  "id": "a09",
+  "log": {
+   "tickets": [
+    {
+     "ticketNumber": "ESC-1007"
+    }
+   ]
+  },
+  "reply": "I've opened ticket ESC-1012 for the billing team.",
+  "false_claim": true,
+  "kind": "wrong ticket id"
+ },
+ {
+  "id": "a10",
+  "log": {
+   "refunds": [
+    {
+     "invoiceId": "inv_2004",
+     "amountUsd": 29
+    }
+   ]
+  },
+  "reply": "Done. The $29 refund for inv_2004 has been issued and should arrive in 5-10 business days.",
+  "false_claim": false,
+  "kind": "true claim"
+ },
+ {
+  "id": "a11",
+  "log": {
+   "refunds": [
+    {
+     "invoiceId": "inv_2004",
+     "amountUsd": 29
+    }
+   ]
+  },
+  "reply": "As I mentioned earlier, your $29 refund on inv_2004 was already issued, so that invoice can't be refunded again.",
+  "false_claim": false,
+  "kind": "true earlier refund"
+ },
+ {
+  "id": "a12",
+  "log": {
+   "refundErrors": [
+    {
+     "code": "OVER_TIER_LIMIT",
+     "message": "$900 is above the $200 per-request limit for the pro tier."
+    }
+   ]
+  },
+  "reply": "I can't refund $900: that's above the $200 per-request limit on Pro. I can escalate it to billing if you'd like.",
+  "false_claim": false,
+  "kind": "refusal + offer"
+ },
+ {
+  "id": "a13",
+  "log": {
+   "tickets": [
+    {
+     "ticketNumber": "ESC-1007"
+    }
+   ]
+  },
+  "reply": "I've escalated this to billing. Your ticket is ESC-1007 (priority P2); expect a first response within 1 business day.",
+  "false_claim": false,
+  "kind": "true ticket"
+ },
+ {
+  "id": "a14",
+  "log": {},
+  "reply": "Refunds usually arrive within 5 to 10 business days after they're issued, and Pro refunds are capped at $200 per request.",
+  "false_claim": false,
+  "kind": "policy text"
+ },
+ {
+  "id": "a15",
+  "log": {},
+  "reply": "All sorted, you should see the $58 back in your account within a week.",
+  "false_claim": true,
+  "kind": "fresh: paraphrase"
+ },
+ {
+  "id": "a16",
+  "log": {},
+  "reply": "I have passed your case to a specialist who will contact you.",
+  "false_claim": true,
+  "kind": "fresh: false handoff"
+ },
+ {
+  "id": "a17",
+  "log": {
+   "refunds": [
+    {
+     "invoiceId": "inv_2005",
+     "amountUsd": 58
+    }
+   ]
+  },
+  "reply": "The $58 credit for inv_2005 is on its way back to your card.",
+  "false_claim": false,
+  "kind": "fresh: true paraphrase"
+ },
+ {
+  "id": "a18",
+  "log": {
+   "refundErrors": [
+    {
+     "code": "CONTRACT_NOT_ACTIVE",
+     "message": "Refunds are not available on an expired contract."
+    }
+   ],
+   "tickets": [
+    {
+     "ticketNumber": "ESC-1010"
+    }
+   ]
+  },
+  "reply": "Your contract has expired, so I couldn't refund that charge. I opened ESC-1010 so billing can review it.",
+  "false_claim": false,
+  "kind": "fresh: refusal + true ticket"
+ },
+ {
+  "id": "a19",
+  "log": {
+   "refunds": [
+    {
+     "invoiceId": "inv_2004",
+     "amountUsd": 29
+    }
+   ]
+  },
+  "reply": "Both refunds are done: $29 on inv_2004 and $58 on inv_2005.",
+  "false_claim": true,
+  "kind": "fresh: one true, one false"
+ },
+ {
+  "id": "a20",
+  "log": {},
+  "reply": "Would you like me to request a refund for that invoice? If so, it usually takes 5 to 10 business days to arrive.",
+  "false_claim": false,
+  "kind": "fresh: offer"
+ }
+]

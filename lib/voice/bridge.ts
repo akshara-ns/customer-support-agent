@@ -2,7 +2,7 @@
  * Voice ↔ backend bridge. Tool calls from the realtime model run through the SAME tool step as
  * chat (lib/agent/tool-step.ts); transcripts and usage go into the same session log and traces.
  */
-import { ClaimGate } from "@/lib/guardrails/claims";
+import { ACTION_VOCABULARY, ClaimGate, type ActionChecker } from "@/lib/guardrails/claims";
 import { runToolStep, toolOutputForModel } from "@/lib/tools/step";
 import { REALTIME_PRICING_PER_MTOK } from "@/lib/config";
 import { actionsForTurn, deriveState, type EventStore } from "@/lib/session/events";
@@ -95,7 +95,7 @@ export async function recordVoiceEvent(
   sessionId: string,
   turnId: string,
   ev: VoiceEvent,
-  deps: { events: EventStore; traces: TraceWriter },
+  deps: { events: EventStore; traces: TraceWriter; actionChecker?: ActionChecker },
 ): Promise<{ flags: string[]; costUsd?: number }> {
   await deps.events.ensureSession(sessionId);
   if (ev.kind === "user_transcript") {
@@ -113,6 +113,30 @@ export async function recordVoiceEvent(
     const flags = gate.corrections.map((c) => `${c.reason}: "${c.original}"`);
     if (flags.length) {
       await deps.traces.write({ sessionId, turnId, kind: "guardrail", name: "claim_check", tokensIn: 0, tokensOut: 0, tokensCached: 0, costUsd: 0, output: { channel: "voice", flags } });
+    }
+    // Layer 2 (model extraction) when the regex found nothing; spoken audio can't be rewritten, so it flags.
+    if (!flags.length && deps.actionChecker && ACTION_VOCABULARY.test(ev.text)) {
+      try {
+        const r = (await deps.actionChecker(ev.text, actions)) as Awaited<ReturnType<ActionChecker>> &
+          Partial<{ model: string; tokensIn: number; tokensOut: number; costUsd: number; ms: number }>;
+        for (const c of r.falseClaims) {
+          flags.push(`model: ${c.claimed_action}: "${c.quote}"`);
+          gate.corrections.push({ original: c.quote, replacement: "", reason: `model: ${c.claimed_action}` });
+        }
+        await deps.traces.write({
+          sessionId,
+          turnId,
+          kind: "guardrail",
+          name: "action_claim_check",
+          tokensIn: r.tokensIn ?? 0,
+          tokensOut: r.tokensOut ?? 0,
+          tokensCached: 0,
+          costUsd: r.costUsd ?? 0,
+          output: { channel: "voice", model: r.model, falseClaims: r.falseClaims, ms: r.ms },
+        });
+      } catch {
+        // Fail open to the regex result: the flag is advisory for audio already spoken.
+      }
     }
     await deps.events.append(sessionId, turnId, "voice", {
       type: "assistant_message",

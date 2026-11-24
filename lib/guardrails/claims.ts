@@ -1,7 +1,9 @@
 /**
  * Claim check: a reply may only claim actions that a tool result in this session shows
  * (earlier turns included, so a true reference to an earlier refund isn't "corrected").
- * Runs per sentence while the reply streams, so nothing false reaches the customer.
+ * Layer 1 (regex) runs per sentence while the reply streams. Layer 2 (a model that extracts claimed
+ * actions; see action-claims.ts) runs when a checker is given: from the first sentence that talks about
+ * money or tickets the rest of the reply is held, checked once at the end, corrected, then released.
  */
 import type { RefundReceipt, Ticket, ToolError } from "@/lib/tools/types";
 
@@ -10,6 +12,12 @@ export interface TurnActions {
   refundErrors: ToolError[];
   tickets: Ticket[];
 }
+
+/** Only replies that talk about money or tickets need the model check. */
+export const ACTION_VOCABULARY = /\b(refund\w*|reimburs\w*|credit\w*|money|funds|charge\w*|card|ticket|escalat\w*|ESC-\d+|billing team|cancel\w*|specialist|team)\b/i;
+
+/** Layer 2: returns actions the reply claims that the tool log doesn't show. */
+export type ActionChecker = (reply: string, actions: TurnActions) => Promise<{ falseClaims: { quote: string; claimed_action: string }[] }>;
 
 export interface SentenceCheck {
   text: string;
@@ -79,9 +87,14 @@ function ticketTruth(a: TurnActions): string {
  */
 export class ClaimGate {
   private buffer = "";
+  /** Sentences held back for the model check (only when a checker is used). */
+  private held: string[] = [];
   readonly corrections: { original: string; replacement: string; reason: string }[] = [];
 
-  constructor(private readonly actions: () => TurnActions) {}
+  constructor(
+    private readonly actions: () => TurnActions,
+    private readonly hold = false,
+  ) {}
 
   push(delta: string): string[] {
     this.buffer += delta;
@@ -91,7 +104,9 @@ export class ClaimGate {
     let consumed = 0;
     for (let m = re.exec(this.buffer); m && m[0].length > 0; m = re.exec(this.buffer)) {
       if (m.index + m[0].length >= this.buffer.length && !/\s$/.test(m[0])) break;
-      out.push(this.check(m[0]));
+      const checked = this.check(m[0]);
+      if (this.hold && (this.held.length || ACTION_VOCABULARY.test(checked))) this.held.push(checked);
+      else out.push(checked);
       consumed = m.index + m[0].length;
     }
     this.buffer = this.buffer.slice(consumed);
@@ -101,12 +116,50 @@ export class ClaimGate {
   /** Drops buffered, unreleased text (a failed model attempt that will be retried). */
   discard(): void {
     this.buffer = "";
+    this.held = [];
   }
 
+  /** Releases everything without the model check (a short preamble before a tool call). */
   flush(): string[] {
     const rest = this.buffer;
     this.buffer = "";
-    return rest.trim() ? [this.check(rest)] : [];
+    const out = this.held;
+    this.held = [];
+    return rest.trim() ? [...out, this.check(rest)] : out;
+  }
+
+  /**
+   * End of the reply: runs the model check on the held sentences, replaces each false claim with the
+   * truth from the tool log, and releases them. If the checker fails, the regex-checked text is released.
+   */
+  async settle(checker?: ActionChecker, onError?: (err: unknown) => void): Promise<string[]> {
+    const held = this.flush();
+    const text = held.join("");
+    if (!checker || !ACTION_VOCABULARY.test(text)) return held;
+    let falseClaims: { quote: string; claimed_action: string }[];
+    try {
+      ({ falseClaims } = await checker(text, this.actions()));
+    } catch (err) {
+      onError?.(err);
+      return held;
+    }
+    const out = [...held];
+    const said = new Set<string>();
+    for (const c of falseClaims) {
+      const quote = norm(c.quote);
+      let i = out.findIndex((s) => norm(s).includes(quote.slice(0, 40)) || (norm(s).length > 8 && quote.includes(norm(s))));
+      const truth = c.claimed_action.startsWith("ticket") ? ticketTruth(this.actions()) : refundTruth(this.actions());
+      const replacement = said.has(truth) ? "" : `${truth} `;
+      said.add(truth);
+      if (i < 0) {
+        out.push(replacement);
+        i = out.length - 1;
+      } else {
+        out[i] = replacement;
+      }
+      this.corrections.push({ original: c.quote, replacement: replacement.trim(), reason: `model: ${c.claimed_action}` });
+    }
+    return out;
   }
 
   private check(sentence: string): string {
@@ -117,3 +170,5 @@ export class ClaimGate {
     return r.text + (trailing || " ");
   }
 }
+
+const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();

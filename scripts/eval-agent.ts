@@ -109,6 +109,7 @@ async function main(): Promise<void> {
   const { MemoryLedger, MemoryTickets } = await import("@/lib/tools/memory-stores");
   const { customerDirectory } = await import("@/lib/tools/customers");
   const { guardedPolicySearch } = await import("@/lib/tools/pg-stores");
+  const { modelActionChecker } = await import("@/lib/guardrails/action-claims");
   const { writeSection, claimsApproval } = await import("../evals/lib");
 
   const lines: string[] = [];
@@ -133,6 +134,7 @@ async function main(): Promise<void> {
         model: openAIAgentModel(model),
         events: new MemoryEventStore(),
         tools: { customers: customerDirectory(now), ledger, tickets, policy: guardedPolicySearch, now: () => now },
+        actionChecker: modelActionChecker,
       };
       const sessionId = randomUUID();
       const called: string[] = [];
