@@ -104,8 +104,10 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
   let ttftMs: number | undefined;
   const turnStart = performance.now();
   const say = (parts: string[]) => {
-    for (const text of parts) {
+    for (let text of parts) {
       if (!text) continue;
+      // Text from separate model steps (a preamble, then the answer) must not run together ("now.Pro").
+      if (/[.!?]$/.test(reply) && /^\S/.test(text)) text = ` ${text}`;
       if (ttftMs === undefined) {
         ttftMs = Math.round(performance.now() - turnStart);
         trace.mark("agent", "first_token", { ms: ttftMs });

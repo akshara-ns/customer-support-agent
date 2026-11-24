@@ -34,4 +34,10 @@ describe("early acknowledgment", () => {
     const e = await run({ content: "Let me look that up. ", toolCalls: [call], usage });
     expect(e.filter((x) => x.type === "token").map((x) => (x as { text: string }).text).join("")).not.toContain(ACKNOWLEDGMENT.trim());
   });
+
+  it("separates a preamble and the answer from different model steps with a space", async () => {
+    const e = await run({ content: "Let me look that up.", toolCalls: [call], usage });
+    const text = e.filter((x) => x.type === "token").map((x) => (x as { text: string }).text).join("");
+    expect(text).toContain("Let me look that up. Thanks for waiting.");
+  });
 });
