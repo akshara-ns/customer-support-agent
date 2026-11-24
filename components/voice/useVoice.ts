@@ -119,6 +119,7 @@ export function useVoice({
     lastSpeechStoppedAt: null as number | null,
     autoReconnects: 0,
     autoReconnectPending: false,
+    autoReconnectTimer: null as ReturnType<typeof setTimeout> | null,
     model: "",
   });
 
@@ -574,14 +575,17 @@ export function useVoice({
   );
 
   // One automatic reconnect after a drop (new key, same session, history replayed); then the manual button.
+  // Scheduled once; not cleared on re-render (callback identities change every render).
   useEffect(() => {
     const c = r.current;
-    if (state !== "reconnecting" || !c.autoReconnectPending) return;
-    c.autoReconnectPending = false;
+    if (state !== "reconnecting" || !c.autoReconnectPending || c.autoReconnectTimer) return;
     c.autoReconnects++;
     note("note", "auto-reconnect");
-    const t = setTimeout(() => void start(mode), 1000);
-    return () => clearTimeout(t);
+    c.autoReconnectTimer = setTimeout(() => {
+      c.autoReconnectTimer = null;
+      c.autoReconnectPending = false;
+      if (!c.stopping) void start(mode);
+    }, 1000);
   }, [state, start, mode, note]);
 
   const restart = useCallback(() => {
