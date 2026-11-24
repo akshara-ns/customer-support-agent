@@ -35,3 +35,11 @@ Commit `0cece47` (voice hook split into transport / audio / events / tool bridge
 | 6 | Drop → reconnect | **Pass (simulated drop)** | "Simulate network drop" → auto-reconnect 1 s later → `live (history 6, verified true)` 2.9 s after the drop; "Yes, escalate" afterwards → ESC-1008 for the $900 request (context survived). |
 | 7 | 3-minute cap | **Pass** | Session 8ccbfe8b: "The voice session reached its 3-minute limit.", pc/dc closed. Realtime cost ≈ $0.097 for that session. |
 | 8 | No API key in the browser | **Pass** | 9 JS bundles of the new build scanned: no `sk-…`, `OPENAI_API_KEY`, `DATABASE_URL`, DB user or `ADMIN_SECRET`; `/api/voice/session` returns only `clientSecret` (`ek_…`), `expiresAt`, `model`, `verified`, `history`, `maxSeconds`. |
+
+## Phase 8 voice checks (2026-11-24, 04:11–04:19 UTC, commit `670a399`)
+
+| Check | Result | Evidence |
+|---|---|---|
+| Over-limit refund goes through the tool | **Pass 3/3** | Three fresh sessions (9553670b, ea74070a, 3946bb1b): "refund nine hundred dollars" → `issue_refund` called each time and refused by code. ✕ "$900 is above the $200 per-request limit for the pro tier", with escalation offered. In Phase 7 this was 0/3. |
+| Stuck pending refund can't lock an invoice | **Pass** | Session 9553670b: trace drawer fault `tool_failure`, then "refund $29" → ✕ "Refund failed; nothing was refunded" (pending entry 04:14:23). Session ea74070a at 04:16:30: "refund $29" → ✓ "Refund of $29 issued on inv_2004". Prod ledger: the 04:14:23 entry is `rejected / REQUEST_EXPIRED` (key retired, completed 04:16:38), and one `succeeded` entry. |
+| Listening / thinking / speaking indicator | **Pass after a fix** | First deploy: the indicator stuck on "Thinking…" after the answer. Playback was one buffer across the tool call, and the stop event named the first response. Now derived from state; observed live: Listening → Thinking… → Speaking → Thinking… (tool) → Speaking → Listening. |
