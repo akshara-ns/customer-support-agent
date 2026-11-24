@@ -77,10 +77,10 @@ export async function GET(request: Request): Promise<Response> {
   const id = z.uuid().safeParse(new URL(request.url).searchParams.get("sessionId"));
   if (!id.success) return Response.json({ error: "invalid_request" }, { status: 400 });
   const events = await pgEventStore.list(id.data);
-  type Line = { seq: number; channel: string; role: "user" | "assistant" | "ticket"; text: string };
+  type Line = { seq: number; channel: string; role: "user" | "assistant" | "ticket"; text: string; interrupted?: boolean };
   const transcript = events.flatMap(({ seq, channel, event }): Line[] => {
     if (event.type === "user_message") return [{ seq, channel, role: "user", text: event.text }];
-    if (event.type === "assistant_message") return [{ seq, channel, role: "assistant", text: event.text }];
+    if (event.type === "assistant_message") return [{ seq, channel, role: "assistant", text: event.text, interrupted: event.interrupted }];
     if (event.type === "escalation" && event.ticket) {
       return [{ seq, channel, role: "ticket", text: `${event.ticket.ticketNumber} (${event.ticket.priority})` }];
     }

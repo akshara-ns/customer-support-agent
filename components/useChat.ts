@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import type { ErrorCode, SseEvent, TicketSummary, TraceSpan } from "@/lib/types";
+import type { AgentEvent, ErrorCode, SseEvent, TicketSummary, TraceSpan } from "@/lib/types";
 
 export interface Step {
   stepId: string;
@@ -22,6 +22,32 @@ export interface ChatMessage {
   streaming?: boolean;
   totals?: { durationMs: number; tokensIn: number; tokensOut: number; costUsd: number };
   spans?: TraceSpan[];
+  channel?: "chat" | "voice";
+  /** Voice: the caller interrupted; text shows only what was (approximately) heard. */
+  interrupted?: boolean;
+  /** Voice: claims in spoken audio that no tool result backs (audio can't be rewritten). */
+  flags?: string[];
+}
+
+/** Applies one step/escalation/error event from the agent to a message (chat SSE and voice bridge). */
+export function applyAgentEvent(m: ChatMessage, e: AgentEvent): ChatMessage {
+  switch (e.type) {
+    case "step_started":
+      return m.steps.some((s) => s.stepId === e.stepId)
+        ? m
+        : { ...m, steps: [...m.steps, { stepId: e.stepId, tool: e.tool, label: e.label, status: "running" }] };
+    case "step_completed": {
+      const exists = m.steps.some((s) => s.stepId === e.stepId);
+      const done: Step = { stepId: e.stepId, tool: e.tool, label: e.label, status: e.ok ? "ok" : "error", durationMs: e.durationMs, summary: e.summary };
+      return { ...m, steps: exists ? m.steps.map((s) => (s.stepId === e.stepId ? done : s)) : [...m.steps, done] };
+    }
+    case "escalation":
+      return { ...m, escalation: { kind: e.kind, reason: e.reason, ticket: e.ticket } };
+    case "error":
+      return { ...m, error: { code: e.code, message: e.message, retryable: e.retryable } };
+    default:
+      return m;
+  }
 }
 
 const SESSION_KEY = "fernway.sessionId";
@@ -86,12 +112,19 @@ export function useChat() {
     let cancelled = false;
     fetch(`/api/chat?sessionId=${sessionId}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: { transcript: { seq: number; role: string; text: string }[] } | null) => {
+      .then((data: { transcript: { seq: number; role: string; text: string; channel?: string; interrupted?: boolean }[] } | null) => {
         if (!data) return;
         const restored: ChatMessage[] = [];
         for (const line of data.transcript) {
           if (line.role === "user" || line.role === "assistant") {
-            restored.push({ id: `h${line.seq}`, role: line.role, text: line.text, steps: [] });
+            restored.push({
+              id: `h${line.seq}`,
+              role: line.role,
+              text: line.text,
+              steps: [],
+              channel: line.channel === "voice" ? "voice" : "chat",
+              interrupted: line.interrupted,
+            });
           } else if (line.role === "ticket" && restored.length) {
             const last = restored[restored.length - 1];
             const [ticketNumber, prio] = line.text.split(" ");
@@ -147,21 +180,10 @@ export function useChat() {
               update(assistantId, (m) => ({ ...m, text: m.text + e.text }));
               break;
             case "step_started":
-              update(assistantId, (m) => ({ ...m, steps: [...m.steps, { stepId: e.stepId, tool: e.tool, label: e.label, status: "running" }] }));
-              break;
             case "step_completed":
-              update(assistantId, (m) => ({
-                ...m,
-                steps: m.steps.map((s) =>
-                  s.stepId === e.stepId ? { ...s, status: e.ok ? "ok" : "error", durationMs: e.durationMs, summary: e.summary } : s,
-                ),
-              }));
-              break;
             case "escalation":
-              update(assistantId, (m) => ({ ...m, escalation: { kind: e.kind, reason: e.reason, ticket: e.ticket } }));
-              break;
             case "error":
-              update(assistantId, (m) => ({ ...m, error: { code: e.code, message: e.message, retryable: e.retryable } }));
+              update(assistantId, (m) => applyAgentEvent(m, e));
               break;
             case "trace":
               update(assistantId, (m) => ({ ...m, spans: [...(m.spans ?? []), e.span] }));
@@ -186,10 +208,15 @@ export function useChat() {
 
   const retry = useCallback(() => send(lastUserText.current), [send]);
 
+  /** Insert or update a message by id (used by voice for live transcripts and step indicators). */
+  const upsert = useCallback((id: string, make: () => ChatMessage, fn: (m: ChatMessage) => ChatMessage) => {
+    setMessages((ms) => (ms.some((m) => m.id === id) ? ms.map((m) => (m.id === id ? fn(m) : m)) : [...ms, fn(make())]));
+  }, []);
+
   const reset = useCallback(() => {
     setMessages([]);
     sessionStore.rotate();
   }, []);
 
-  return { sessionId, messages, busy, send, retry, reset };
+  return { sessionId, messages, busy, send, retry, reset, upsert };
 }

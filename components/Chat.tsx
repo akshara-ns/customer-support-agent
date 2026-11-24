@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useChat, type ChatMessage, type Step } from "@/components/useChat";
+import { VoiceBar } from "@/components/voice/VoiceBar";
+import { VoiceDebugPanel } from "@/components/voice/VoiceDebugPanel";
+import { useVoice } from "@/components/voice/useVoice";
 
 function StepRow({ step }: { step: Step }) {
   return (
@@ -40,8 +43,11 @@ function EscalationCard({ m, onCreate }: { m: ChatMessage; onCreate: () => void 
   );
 }
 
-export function Chat() {
-  const { sessionId, messages, busy, send, retry, reset } = useChat();
+export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
+  const { sessionId, messages, busy, send, retry, reset, upsert } = useChat();
+  const voice = useVoice({ sessionId, upsert, debug: voiceDebug });
+  const [voiceOpen, setVoiceOpen] = useState(voiceDebug);
+  const voiceActive = voice.state === "live" || voice.state === "connecting" || voice.state === "reconnecting";
   const [draft, setDraft] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -65,10 +71,25 @@ export function Chat() {
             Session <code>{sessionId ? sessionId.slice(0, 8) : "…"}</code>
           </p>
         </div>
-        <button type="button" className="secondary" onClick={reset} disabled={busy}>
-          New conversation
-        </button>
+        <div className="header-actions">
+          <button
+            type="button"
+            className={voiceOpen ? "" : "secondary"}
+            onClick={() => {
+              if (voiceActive) voice.stop();
+              setVoiceOpen((v) => !v);
+            }}
+            aria-pressed={voiceOpen}
+          >
+            {voiceOpen ? "Voice on" : "Voice"}
+          </button>
+          <button type="button" className="secondary" onClick={reset} disabled={busy || voiceActive}>
+            New conversation
+          </button>
+        </div>
       </header>
+      {voiceOpen && <VoiceBar voice={voice} allowClips={voiceDebug} />}
+      {voiceDebug && <VoiceDebugPanel voice={voice} />}
 
       <div className="messages" aria-live="polite">
         {messages.length === 0 && (
@@ -77,7 +98,8 @@ export function Chat() {
           </p>
         )}
         {messages.map((m) => (
-          <div key={m.id} className={`msg msg-${m.role}`}>
+          <div key={m.id} className={`msg msg-${m.role}${m.channel === "voice" ? " msg-voice" : ""}`}>
+            {m.channel === "voice" && <span className="voice-tag small muted">voice</span>}
             {m.steps.length > 0 && (
               <ul className="steps">
                 {m.steps.map((s) => (
@@ -89,6 +111,12 @@ export function Chat() {
               <div className="bubble">
                 {m.text}
                 {m.streaming && <span className="caret" aria-hidden />}
+                {m.interrupted && <span className="interrupted-tag"> interrupted</span>}
+              </div>
+            )}
+            {m.flags && m.flags.length > 0 && (
+              <div className="claim-flag small" role="alert">
+                Spoken claim not backed by a tool result: {m.flags.join("; ")}
               </div>
             )}
             <EscalationCard m={m} onCreate={() => void send("Please create an escalation ticket so a human can help with this.")} />
@@ -122,8 +150,8 @@ export function Chat() {
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={busy ? "Working…" : "Type a message"}
-          disabled={busy || !sessionId}
+          placeholder={voiceActive ? "Voice is on: speak, or end voice to type" : busy ? "Working…" : "Type a message"}
+          disabled={busy || !sessionId || voiceActive}
           maxLength={2000}
           aria-label="Message"
         />
