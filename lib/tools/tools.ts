@@ -40,10 +40,16 @@ function asToolError(v: unknown): ToolError {
 export type VerifyEffects = ToolEffects;
 
 export async function verifyIdentity(
-  input: { email: string; code: string },
+  args: { email: string | null; code: string },
   ctx: ToolContext,
   deps: ToolDeps,
 ): Promise<{ result: ToolResult<VerifyOutput>; effects: ToolEffects }> {
+  // A retry may send only the new PIN: the email from this conversation's last attempt is reused.
+  const email = args.email ?? ctx.lastVerifyEmail ?? null;
+  if (!email) {
+    return { result: fail({ code: "INVALID_INPUT", message: "Ask the customer for the email on the account and their support PIN.", retryable: false }), effects: {} };
+  }
+  const input = { email, code: args.code };
   if (ctx.failedVerifications >= MAX_FAILED_VERIFICATIONS) {
     return {
       result: fail({ code: "IDENTITY_LOCKED", message: "Too many failed verification attempts in this conversation.", retryable: false }),
@@ -87,7 +93,7 @@ export async function verifyIdentity(
     return {
       result: fail({
         code: "VERIFICATION_FAILED",
-        message: `The email and support PIN don't match our records (attempt ${attempts} of ${MAX_FAILED_VERIFICATIONS}).`,
+        message: `The email and support PIN don't match our records (attempt ${attempts} of ${MAX_FAILED_VERIFICATIONS}). The email is kept for this conversation: ask only for the PIN again, then call verify_identity with email null and the new code.`,
         retryable: true,
       }),
       effects: { failedVerification: true },

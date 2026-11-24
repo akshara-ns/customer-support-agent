@@ -52,4 +52,6 @@ export interface ToolContext {
    * bridge; issue_refund refuses when it is false. Undefined (unit tests of the tool alone) skips the check.
    */
   refundRequested?: boolean;
+  /** Email from this conversation's last verify_identity attempt, so a retry can send only a new PIN. */
+  lastVerifyEmail?: string | null;
 }

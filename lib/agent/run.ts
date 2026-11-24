@@ -90,6 +90,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
     turnId: trace.turnId,
     customer: prior.customer,
     failedVerifications: prior.failedVerifications,
+    lastVerifyEmail: prior.lastVerifyEmail,
     trace,
     refundRequested:
       REFUND_INTENT.test(input.message) || history.some(({ event }) => event.type === "user_message" && REFUND_INTENT.test(event.text)),

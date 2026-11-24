@@ -30,17 +30,26 @@ export interface EventStore {
 export interface SessionState {
   customer: VerifiedCustomer | null;
   failedVerifications: number;
+  /** Email of the last verify_identity attempt (from the tool-call log; the PIN there is redacted). */
+  lastVerifyEmail: string | null;
 }
 
 export function deriveState(events: StoredEvent[]): SessionState {
   let customer: VerifiedCustomer | null = null;
   let failedVerifications = 0;
+  let lastVerifyEmail: string | null = null;
   for (const { event } of events) {
+    if (event.type === "tool_call" && event.name === "verify_identity") {
+      try {
+        const email = (JSON.parse(event.arguments) as { email?: unknown }).email;
+        if (typeof email === "string" && email.includes("@")) lastVerifyEmail = email;
+      } catch {}
+    }
     if (event.type !== "tool_result") continue;
     if (event.effects.verified) customer = event.effects.verified;
     if (event.effects.failedVerification) failedVerifications++;
   }
-  return { customer, failedVerifications };
+  return { customer, failedVerifications, lastVerifyEmail };
 }
 
 export type ContextMessage =

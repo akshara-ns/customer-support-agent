@@ -11,7 +11,7 @@ import type { ToolContext } from "@/lib/tools/types";
 
 const Inputs = {
   // Strict formats: a placeholder or malformed value is INVALID_INPUT and never counts as a failed attempt.
-  verify_identity: z.object({ email: z.email().max(200), code: z.string().regex(/^\d{6}$/, "support PIN must be 6 digits") }),
+  verify_identity: z.object({ email: z.email().max(200).nullable(), code: z.string().regex(/^\d{6}$/, "support PIN must be 6 digits") }),
   get_policy: z.object({ question: z.string().min(3).max(500) }),
   issue_refund: z.object({ invoice_id: z.string().min(1).max(40), amount_usd: z.number(), reason: z.string().min(1).max(300) }),
   create_escalation_ticket: z.object({ reason: z.enum(TICKET_REASONS), summary: z.string().min(5).max(1000) }),
@@ -33,7 +33,7 @@ export const TOOL_DEFINITIONS = [
         additionalProperties: false,
         required: ["email", "code"],
         properties: {
-          email: { type: "string", description: "Email address on the account" },
+          email: { type: ["string", "null"], description: "Email address on the account. null after a failed attempt to reuse the email the customer already gave." },
           code: { type: "string", description: "6-digit support PIN" },
         },
       },

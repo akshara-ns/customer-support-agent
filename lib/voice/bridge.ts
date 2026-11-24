@@ -38,7 +38,7 @@ export async function runVoiceTool(
     channel: "voice",
     stepId: `${req.turnId}:${req.callId}`,
     call: { id: req.callId, name: req.name, arguments: req.arguments },
-    ctx: { sessionId: req.sessionId, turnId: req.turnId, customer: state.customer, failedVerifications: state.failedVerifications, trace },
+    ctx: { sessionId: req.sessionId, turnId: req.turnId, customer: state.customer, failedVerifications: state.failedVerifications, lastVerifyEmail: state.lastVerifyEmail, trace },
     deps: deps.tools,
     events: deps.events,
     emit: (e) => emitted.push(e),
