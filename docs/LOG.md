@@ -79,3 +79,5 @@ What was done, what was tried and dropped, problems found, AI use.
 
 **AI use**
 - Claude Code (Opus) designed and wrote the tools, agent, SSE route, UI, tests and scenario runner, and ran all checks shown.
+- Live UI testing found two bugs the tests missed: (1) the transcript restore for a new session could overwrite a message sent while it was loading (now it only fills an empty list); (2) on a later turn the model re-called verify_identity with the redacted PIN from the log and failed verification (re-verifying an already verified account is now a no-op in code, with a test). Live acceptance then passed: Pro verify → policy, refund $174 within limits, $900 refused by the tool, ticket ESC-1001 (P2) on request; enterprise verify → policy → refund $650 in one turn.
+- Live demo state is now used up for Omar inv_2001/inv_2002 and Northbeam inv_3001 (already refunded in the ledger). A demo reset is needed before the Loom.
