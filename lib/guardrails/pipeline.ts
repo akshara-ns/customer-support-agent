@@ -1,7 +1,7 @@
 import "server-only";
 import { GUARDRAILS } from "@/lib/config";
 import { assessRetrievalConfidence, type RetrievalConfidence } from "@/lib/guardrails/confidence";
-import { checkGrounding, type GroundingResult } from "@/lib/guardrails/grounding";
+import { checkClaims, checkGrounding, type ClaimChecker, type GroundingResult } from "@/lib/guardrails/grounding";
 import { Trace } from "@/lib/observability/trace";
 import { generateAnswer } from "@/lib/rag/answer";
 import { retrieve, type RetrieveParams } from "@/lib/rag/retrieve";
@@ -34,9 +34,18 @@ function evidenceOf(chunks: RetrievedChunk[]): Evidence[] {
  * Retrieval → confidence gate → cited answer → grounding gate → typed decision.
  * Every step is a trace span; any gate failure yields `{ escalate: true, reason }`.
  */
-export async function answerWithGuardrails(opts: GuardOptions, trace = new Trace()): Promise<GuardedAnswer> {
+/** The pipeline's external calls, injectable so every branch is unit-tested without API cost. */
+export interface PipelineDeps {
+  retrieve: typeof retrieve;
+  generate: typeof generateAnswer;
+  checkClaims: ClaimChecker;
+}
+
+const DEFAULT_DEPS: PipelineDeps = { retrieve, generate: generateAnswer, checkClaims };
+
+export async function answerWithGuardrails(opts: GuardOptions, trace = new Trace(), deps: PipelineDeps = DEFAULT_DEPS): Promise<GuardedAnswer> {
   const threshold = opts.threshold ?? GUARDRAILS.similarityThreshold;
-  const { chunks } = await retrieve(opts, trace);
+  const { chunks } = await deps.retrieve(opts, trace);
   const confidence = await trace.span("guardrail", "retrieval_confidence", { threshold }, async (s) => {
     const c = assessRetrievalConfidence(chunks, threshold);
     s.output(c);
@@ -71,7 +80,7 @@ export async function answerWithGuardrails(opts: GuardOptions, trace = new Trace
     };
   }
 
-  const draft = await generateAnswer(opts.query, chunks, opts.tier, trace);
+  const draft = await deps.generate(opts.query, chunks, opts.tier, trace);
   if (draft.declined) {
     return escalate(lowConfidence ? "low_retrieval_confidence" : "answer_declined", "documents do not cover the question", {
       draft: draft.text,
@@ -80,7 +89,7 @@ export async function answerWithGuardrails(opts: GuardOptions, trace = new Trace
 
   let grounding: GroundingResult;
   try {
-    grounding = await checkGrounding(draft.text, chunks, trace);
+    grounding = await checkGrounding(draft.text, chunks, trace, deps.checkClaims);
   } catch (err) {
     return escalate("grounding_check_failed", err instanceof Error ? err.message : "grounding check failed", {
       draft: draft.text,

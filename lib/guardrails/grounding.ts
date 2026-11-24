@@ -78,16 +78,19 @@ export async function checkClaims(
 }
 
 /** Gate 2: citations must exist and be in the retrieved set, then every claim must be supported. */
+export type ClaimChecker = typeof checkClaims;
+
 export async function checkGrounding(
   answer: string,
   retrieved: RetrievedChunk[],
   trace?: Trace,
+  claimChecker: ClaimChecker = checkClaims,
 ): Promise<GroundingResult> {
   const run = async (onUsage?: (i: number, o: number) => void): Promise<GroundingResult> => {
     const citations = checkCitations(answer, retrieved.map((c) => c.chunkKey));
     if (!citations.ok) return { ok: false, citations, claims: null, unsupported: [] };
     const citedChunks = retrieved.filter((c) => citations.cited.includes(c.chunkKey));
-    const { claims } = await checkClaims(answer, citedChunks, MODELS.groundingCheck, onUsage);
+    const { claims } = await claimChecker(answer, citedChunks, MODELS.groundingCheck, onUsage);
     const unsupported = claims.filter((c) => !c.supported).map((c) => c.claim);
     return { ok: claims.length > 0 && unsupported.length === 0, citations, claims, unsupported };
   };
