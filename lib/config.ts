@@ -40,3 +40,15 @@ export const GUARDRAILS = {
   /** Per-call timeout for the answer and grounding-check models. */
   llmTimeoutMs: 20_000,
 } as const;
+
+/** Abuse and cost limits for public endpoints (lib/ratelimit.ts). */
+export const RATE_LIMITS = {
+  ragAnswer: [
+    { bucket: "rag_answer:ip", scope: "ip", limit: 10, windowSec: 600 },
+    { bucket: "rag_answer:daily", scope: "global", limit: 200, windowSec: 86_400 },
+  ],
+  chat: [
+    { bucket: "chat:ip", scope: "ip", limit: 30, windowSec: 600 },
+    { bucket: "chat:daily", scope: "global", limit: 600, windowSec: 86_400 },
+  ],
+} as const;

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { GUARDRAILS } from "@/lib/config";
+import { GUARDRAILS, RATE_LIMITS } from "@/lib/config";
+import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { answerWithGuardrails } from "@/lib/guardrails/pipeline";
 import { TIERS } from "@/lib/types";
 
@@ -7,6 +8,7 @@ import { TIERS } from "@/lib/types";
  * Debug view of retrieval and the guardrail decision.
  *   GET /api/rag/search?q=...&tier=pro            retrieval + confidence gate only (no LLM calls)
  *   GET /api/rag/search?q=...&tier=pro&answer=1   full pipeline: cited answer + grounding check
+ *                                                 (rate limited: 10 per IP per 10 min, 200 per day)
  */
 const Query = z.object({
   q: z.string().trim().min(1).max(500),
@@ -26,6 +28,11 @@ export async function GET(request: Request): Promise<Response> {
   const { q, tier, answer } = parsed.data;
 
   try {
+    // answer=1 calls two LLMs; cap it per IP and per day so the public endpoint can't run up cost.
+    if (answer === "1") {
+      const limit = await consumeLimits(request, [...RATE_LIMITS.ragAnswer]);
+      if (!limit.allowed) return rateLimitedResponse(limit);
+    }
     const r = await answerWithGuardrails({ query: q, tier, generate: answer === "1" });
     return Response.json(
       {
