@@ -1,6 +1,6 @@
 import { Chat } from "@/components/Chat";
 import { DemoUsers } from "@/components/DemoUsers";
-import { HealthStatus } from "@/components/HealthStatus";
+import { HealthPanel } from "@/components/HealthStatus";
 import { demoUsers } from "@/lib/tools/customers";
 
 export default function Home() {
@@ -9,10 +9,7 @@ export default function Home() {
       <Chat />
       <div className="side">
         <DemoUsers users={demoUsers()} />
-        <details className="small">
-          <summary>Backend health</summary>
-          <HealthStatus />
-        </details>
+        <HealthPanel />
       </div>
     </main>
   );

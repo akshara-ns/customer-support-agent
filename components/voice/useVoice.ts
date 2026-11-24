@@ -117,6 +117,8 @@ export function useVoice({
     handledCalls: new Set<string>(),
     lastClipAt: null as number | null,
     lastSpeechStoppedAt: null as number | null,
+    autoReconnects: 0,
+    autoReconnectPending: false,
     model: "",
   });
 
@@ -517,6 +519,8 @@ export function useVoice({
           if (c.stopping) return;
           if (pc.connectionState === "failed") flushTranscripts();
           if (pc.connectionState === "disconnected" || pc.connectionState === "failed") setState("reconnecting");
+          // One automatic reconnect (new key, same session, history replayed); then the manual button.
+          if (pc.connectionState === "failed" && c.autoReconnects < 1) c.autoReconnectPending = true;
           if (pc.connectionState === "connected") setState((s) => (s === "reconnecting" ? "live" : s));
         };
         pc.oniceconnectionstatechange = syncConn;
@@ -544,7 +548,9 @@ export function useVoice({
         };
         dc.onclose = () => {
           syncConn();
-          if (!c.stopping) setState("reconnecting");
+          if (c.stopping) return;
+          setState("reconnecting");
+          if (c.autoReconnects < 1) c.autoReconnectPending = true;
         };
 
         const offer = await pc.createOffer();
@@ -567,7 +573,21 @@ export function useVoice({
     [mode, sessionId, teardown, note, onEvent, send, stop, flushTranscripts],
   );
 
-  const restart = useCallback(() => void start(mode), [start, mode]);
+  // One automatic reconnect after a drop (new key, same session, history replayed); then the manual button.
+  useEffect(() => {
+    const c = r.current;
+    if (state !== "reconnecting" || !c.autoReconnectPending) return;
+    c.autoReconnectPending = false;
+    c.autoReconnects++;
+    note("note", "auto-reconnect");
+    const t = setTimeout(() => void start(mode), 1000);
+    return () => clearTimeout(t);
+  }, [state, start, mode, note]);
+
+  const restart = useCallback(() => {
+    r.current.autoReconnects = 0;
+    void start(mode);
+  }, [start, mode]);
 
   /** Debug: drop the peer connection as a network failure would. */
   const simulateDrop = useCallback(() => {
@@ -577,6 +597,7 @@ export function useVoice({
       c.pc?.close();
     } catch {}
     if (c.timer) clearInterval(c.timer);
+    if (c.autoReconnects < 1) c.autoReconnectPending = true;
     setState("reconnecting");
     setConn((x) => ({ ...x, pc: "closed (simulated drop)", dc: "closed" }));
     note("note", "simulated network drop");

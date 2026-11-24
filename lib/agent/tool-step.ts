@@ -32,7 +32,12 @@ export interface ToolStepArgs {
 }
 
 export function summarizeOutcome(o: ToolOutcome): string {
-  if (!o.result.ok) return o.result.error.message;
+  if (!o.result.ok) {
+    // The UI gets customer-facing text; the model-facing message (with retry instructions) stays internal.
+    if (o.result.error.code === "TOOL_FAILURE") return o.name === "issue_refund" ? "Refund failed; nothing was refunded" : "Step failed; nothing was changed";
+    if (o.result.error.code === "SERVICE_UNAVAILABLE") return "The knowledge base is temporarily unavailable";
+    return o.result.error.message;
+  }
   const d = o.result.data as Record<string, unknown>;
   switch (o.name) {
     case "verify_identity":
@@ -43,6 +48,8 @@ export function summarizeOutcome(o: ToolOutcome): string {
       return `Refund of $${d.amountUsd} issued on ${d.invoiceId}${d.replayed ? " (already processed)" : ""}`;
     case "create_escalation_ticket":
       return `Ticket ${d.ticketNumber} created (${d.priority})`;
+    default:
+      return "Done";
   }
 }
 

@@ -40,3 +40,14 @@ export function HealthStatus() {
     </div>
   );
 }
+
+/** Collapsed by default; the health check only runs once the panel is opened. */
+export function HealthPanel() {
+  const [open, setOpen] = useState(false);
+  return (
+    <details className="small" onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary>Backend health</summary>
+      {open && <HealthStatus />}
+    </details>
+  );
+}

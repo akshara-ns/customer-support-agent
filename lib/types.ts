@@ -4,17 +4,6 @@
  */
 
 export type Channel = "chat" | "voice";
-export type MessageRole = "user" | "assistant" | "tool" | "system";
-
-export interface ChatMessage {
-  id: string;
-  sessionId: string;
-  role: MessageRole;
-  channel: Channel;
-  content: string;
-  createdAt: string;
-}
-
 // ---- SSE events streamed from /api/chat ----
 
 export type ErrorCode =

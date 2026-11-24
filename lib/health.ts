@@ -24,7 +24,14 @@ async function checkModel(model: string): Promise<DependencyHealth> {
   }
 }
 
-export async function checkAll(): Promise<{ db: DbHealth; embeddings: DependencyHealth; llm: DependencyHealth; ok: boolean }> {
+type Health = { db: DbHealth; embeddings: DependencyHealth; llm: DependencyHealth; ok: boolean };
+let cached: { at: number; value: Health } | null = null;
+
+/** Cached for 30 s per instance, so health checks can't be used to run up provider calls. */
+export async function checkAll(): Promise<Health> {
+  if (cached && Date.now() - cached.at < 30_000) return cached.value;
   const [db, embeddings, llm] = await Promise.all([checkDb(), checkModel(MODELS.embedding), checkModel(MODELS.agent)]);
-  return { db, embeddings, llm, ok: db.ok && embeddings.ok && llm.ok };
+  const value = { db, embeddings, llm, ok: db.ok && embeddings.ok && llm.ok };
+  cached = { at: Date.now(), value };
+  return value;
 }
