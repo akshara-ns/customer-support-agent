@@ -11,6 +11,10 @@ export const MODELS = {
   groundingCheck: "gpt-5.4-nano",
   /** Agent loop (tool selection + replies). Chosen by the live scenario run; see DECISIONS.md. */
   agent: "gpt-5.4-mini",
+  /** Voice: speech-to-speech over WebRTC. The mini model is 3.2x cheaper on audio than gpt-realtime-2.1. */
+  realtime: "gpt-realtime-2.1-mini",
+  /** Live transcription of the caller's speech inside the realtime session. */
+  realtimeTranscribe: "gpt-4o-mini-transcribe",
 } as const;
 
 export const EMBEDDING_DIMENSIONS = 1536;
@@ -53,4 +57,29 @@ export const RATE_LIMITS = {
     { bucket: "chat:ip", scope: "ip", limit: 30, windowSec: 600 },
     { bucket: "chat:daily", scope: "global", limit: 600, windowSec: 86_400 },
   ],
+  voiceSession: [
+    { bucket: "voice_session:ip", scope: "ip", limit: 6, windowSec: 600 },
+    { bucket: "voice_session:daily", scope: "global", limit: 60, windowSec: 86_400 },
+  ],
+  voiceTool: [
+    { bucket: "voice_tool:ip", scope: "ip", limit: 60, windowSec: 600 },
+    { bucket: "voice_tool:daily", scope: "global", limit: 1500, windowSec: 86_400 },
+  ],
+  voiceEvents: [{ bucket: "voice_events:ip", scope: "ip", limit: 300, windowSec: 600 }],
+} as const;
+
+/** Realtime pricing, USD per 1M tokens (OpenAI pricing page, checked 2026-11-23). */
+export const REALTIME_PRICING_PER_MTOK: Record<string, { audioIn: number; audioOut: number; textIn: number; textOut: number; cachedIn: number }> = {
+  "gpt-realtime-2.1-mini": { audioIn: 10, audioOut: 20, textIn: 0.6, textOut: 2.4, cachedIn: 0.3 },
+  "gpt-realtime-2.1": { audioIn: 32, audioOut: 64, textIn: 4, textOut: 24, cachedIn: 0.4 },
+};
+
+export const VOICE = {
+  voice: "marin",
+  /** Hard cap per voice session (cost control); the client ends the call and shows a timer. */
+  maxSessionSeconds: 180,
+  /** The ephemeral key only needs to live long enough to complete the SDP exchange. */
+  clientSecretTtlSeconds: 60,
+  /** Recent chat/voice messages replayed into a new voice session. */
+  historyMessages: 12,
 } as const;
