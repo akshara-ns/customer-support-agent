@@ -45,14 +45,18 @@ flowchart LR
 
 | Module | Responsibility |
 |---|---|
-| `lib/agent` | Turn loop (`run.ts`), typed state machine (`machine.ts`), model port + OpenAI adapter, retries (`retry.ts`), claim gate (`claims.ts`), shared tool step (`tool-step.ts`), system prompt |
-| `lib/tools` | Tool registry (zod schemas, preconditions, typed errors), **policy as pure code** (`policy.ts`), tools, stores behind ports (Postgres + in-memory), mock CRM |
-| `lib/rag` | Section-aware chunker, idempotent ingest, embeddings, tier-filtered pgvector retrieval, cited answer generation |
-| `lib/guardrails` | Retrieval-confidence gate, citation check, LLM claim check, injection scanner, data-only prompt framing, the guarded pipeline |
+| `lib/contracts.ts` | Client-safe shared contracts: tool names/labels, `ToolOutcome` (discriminated union per tool), API payloads (voice session/tool, transcript lines, trace report) |
+| `lib/server` | Production wiring (Postgres stores, OpenAI clients) and transcript building for the routes |
+| `lib/agent` | Turn loop (`run.ts`), typed state machine (`machine.ts`), model port + OpenAI adapter, retries (`retry.ts`), system prompt |
+| `lib/tools` | Tool registry (zod schemas, preconditions, typed errors, typed handler map), **policy as pure code** (`policy.ts`), tools, the shared tool step for chat and voice (`step.ts`), stores behind ports (Postgres + in-memory), mock CRM |
+| `lib/rag` | Section-aware chunker, idempotent ingest, embeddings, tier-filtered pgvector retrieval, data-only prompt framing, injection scanner, cited answer generation |
+| `lib/guardrails` | Retrieval-confidence gate, citation check, LLM claim check, the guarded pipeline (dependencies injectable for tests), the agent's sentence claim gate (`claims.ts`) |
 | `lib/voice` | Realtime session config + ephemeral key minting, voice tool bridge, transcript and usage recording |
 | `lib/session` | Append-only session event log (shared by chat and voice), stream log for resume, per-browser session ownership |
 | `lib/observability` | Traces (spans with parents, tokens, cost), redaction, persistence, the drawer report (p50/p95) |
-| `app/`, `components/` | Next.js pages and API routes; chat, voice bar, waveforms, trace drawer |
+| `app/`, `components/` | Next.js pages and API routes; chat, SSE client (`sse.ts`), voice (`components/voice`: `useVoice` lifecycle hook + `transport`, `audio`, `realtimeEvents`, `toolBridge`, `interruption`, `transcript`), waveforms, trace drawer |
+
+**Layers** (enforced by `tests/architecture.test.ts` and an ESLint rule for `components/**`): UI → API routes → `lib/server` → orchestration (`agent`, `voice`) → `tools` → `guardrails` → `rag` → infra (`db`, `session`, `observability`). Imports only go downward; `lib/contracts`, `lib/types`, `lib/config` and `data/` are shared.
 
 ## How a turn works
 
@@ -85,7 +89,8 @@ Each step streams `step_started` / `step_completed` events ("Verifying identity 
 
 1. **Retrieval gate:** top-1 cosine ≥ **0.28**.
    - Chosen on a 20-query calibration split of a 30-query labelled set. The rule: zero missed escalations for the full guardrail, then fewest false escalations, then the midpoint of the tied range.
-   - The held-out split (10 queries) was scored once: **1/6 false escalations, 0/4 missed**.
+   - **Fresh held-out set v2 (30 new queries, 2026-11-24, threshold and rule unchanged, run once):** **1/15 false escalations (7%), 0/15 missed (0%)**. By category: in-scope 0/6 FE; tier-specific 1/6 FE (a Free-tier "version history" answer without citations); out-of-scope 0/6 ME; near-miss 0/6 ME; injection 0/3 FE, 0/3 ME. Recall@5 15/15.
+   - History: the original held-out split (10 queries, 2026-11-24 01:00 UTC) scored **1/6 false escalations, 0/4 missed**.
    - Similarity alone can't separate near-miss questions from answerable ones (it needs t ≥ 0.58, which escalates 67% of answerable queries). So the threshold screens clear out-of-scope queries before any LLM call, and gate 2 catches near-misses. See `evals/RESULTS.md`.
 2. **Grounding gate:** the answer must cite retrieved chunk ids. Every cited id must exist in the retrieved set. A second model (`gpt-5.4-nano`, chosen by a hand-labelled sanity set: 9/9) checks each claim against the cited chunks. A missing or invalid citation, an unsupported claim, or a "not covered" answer → **escalation state** (typed decision with reason, confidence and evidence; the UI shows an escalation card).
 
@@ -123,7 +128,7 @@ Each step streams `step_started` / `step_completed` events ("Verifying identity 
 | One Next.js app on Vercel; API routes are the backend | One deploy, shared types, no CORS | No long-lived server (WebSockets), so chat uses SSE |
 | Custom typed state machine instead of LangGraph | Every state and transition explicit and tested | Less built-in tooling |
 | Neon Postgres + pgvector for everything | One store; tier filter and joins in SQL | Not a dedicated vector DB |
-| `gpt-5.4-mini` for the agent | Passed 6/6 live scenarios. `gpt-5.4-nano` is about 3× cheaper but took unrequested actions | Higher cost per turn (~$0.002–0.005) |
+| `gpt-5.4-mini` for the agent | Passed 18/18 live scenario runs (6 scenarios × 3, 2026-11-24; earlier single runs 6/6). `gpt-5.4-nano` is about 3× cheaper but took unrequested actions | Higher cost per turn (~$0.002–0.005) |
 | `gpt-realtime-2.1-mini` for voice | 3.2× cheaper audio than `gpt-realtime-2.1`; fine for short answers | Slightly less natural speech |
 | Similarity threshold 0.28 + grounding gate | Measured on a split eval set; similarity alone can't separate near-misses | An extra LLM call per policy answer (~1 s) |
 | Sentence-gated streaming (claim gate) | False action claims never reach the user | First text appears per sentence, after tool steps |
@@ -147,14 +152,15 @@ npm run dev                       # http://localhost:3000
 | `npm run typecheck`, `npm run lint` | Type and lint checks |
 | `npm run eval:guardrails` | Threshold sweep and held-out scoring → `evals/RESULTS.md` (~$0.03) |
 | `npm run eval:grounding` | Grounding-checker sanity set → `evals/RESULTS.md` |
-| `npm run eval:agent -- gpt-5.4-mini` | Live multi-turn scenarios → `evals/AGENT_RESULTS.md` (~$0.03) |
+| `npm run eval:agent -- gpt-5.4-mini [--repeat 3]` | Live multi-turn scenarios → `evals/AGENT_RESULTS.md` (~$0.01 per run of 6; `--repeat 3` ≈ $0.06) |
+| `npm run eval:heldout` | Fresh 30-query held-out guardrail set, run once → `evals/RESULTS.md` (~$0.02) |
 | `npm run demo:reset` | Clears demo refunds and tickets (developer machine only; asks to confirm) |
 | `npm run voice:clips` | Regenerates the synthetic caller clips for `/voice-debug` |
 
 ## Evidence
 
-- `evals/RESULTS.md`: guardrail calibration and the grounding-checker sanity check
-- `evals/AGENT_RESULTS.md`: live agent scenarios
+- `evals/RESULTS.md`: guardrail calibration, the fresh held-out set v2 (by category) and the grounding-checker sanity check
+- `evals/AGENT_RESULTS.md`: live agent scenarios (latest: 18/18, 3 runs per scenario, with pass rate per scenario) and run history
 - `evals/VOICE_CHECKS.md`: voice checks on the live URL
 - `evals/RESILIENCE_CHECKS.md`: failure injection checks
 - `docs/REVIEW.md`: independent review findings and fixes
@@ -165,6 +171,7 @@ npm run dev                       # http://localhost:3000
 - **Voice tests used synthetic speech.** Voice checks were run with synthetic TTS speech played into the mic track, not a person on a microphone. The network-drop test was simulated.
 - **Approximate heard text.** When the server doesn't confirm truncation, the heard portion of an interrupted answer is estimated (about 15 characters per second).
 - **No user accounts.** Ownership is per browser cookie; demo data is shared, so refunds one reviewer issues affect the next (extra invoices per user mitigate this).
-- **Structure follow-ups:** the voice hook is large and not yet split into transport, events and tool bridge. Tool results are typed `unknown` at the registry boundary (casts downstream). A few modules import across layers (chat uses wiring from `lib/voice/deps.ts`; `rag` and `guardrails` reference each other).
-- **Untested by unit tests:** the guardrail pipeline's branch logic (covered by the paid evals) and the stream-resume protocol (verified live).
-- **Restored transcripts** lose step indicators after a reload (the drawer keeps the full trace).
+- **Voice over-limit refunds are refused without calling the tool.** In the Phase 7 live re-check the voice model refused a $900 refund from policy text 3/3 times instead of calling `issue_refund` (in Phase 4 it called the tool; a Phase 6 prompt line sending general questions to get_policy is the likely cause). The answer and escalation were correct and nothing can refund outside the tool, but in voice the refusal comes from the model, not the code path. Chat calls the tool (scenario S2, 3/3).
+- **Answer wording can be inconsistent** in ways the claim gate doesn't catch (seen once: an invoice listed as eligible and, in the next clause, as already refunded).
+- **Eval sizes are small:** 30 + 30 guardrail queries and 6 scenarios × 3 runs; they show the behaviour, not a tight error bound.
+- **Restored transcripts** show step indicators and ticket cards after a reload, but not per-turn totals (the drawer keeps the full trace).

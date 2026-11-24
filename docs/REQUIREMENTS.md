@@ -30,7 +30,7 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done and demonstrated.
 | 2.1 | Node.js backend connected to a vector DB (Neon pgvector) | C | 25% | /api/health checks DB; test: retrieval query | [x] Neon pgvector 0.8.7; lib/rag/retrieve.ts cosine top-k; live tests pass |
 | 2.2 | Custom document chunking over sample support policies | A/C | 35%/25% | test: chunker on fixtures; README explains choice | [x] lib/rag/chunker.ts section-aware, 52 chunks; tests/chunker.test.ts; D13 |
 | 2.3 | Sample support policy corpus (refunds, tiers, troubleshooting) | A | 35% | files in repo; ingest script output | [x] data/policies: 11 docs (incl. 1 poisoned) + data/mock_users.json (6 users) |
-| 2.4 | Explicit similarity threshold, calibrated on a labeled eval set | A | 35% | eval: precision/recall at chosen threshold printed | [x] t=0.28 by stated rule on calibration split; evals/RESULTS.md |
+| 2.4 | Explicit similarity threshold, calibrated on a labeled eval set | A | 35% | eval: precision/recall at chosen threshold printed | [x] t=0.28 by stated rule on calibration split; fresh 30-query held-out v2: FE 1/15, ME 0/15; evals/RESULTS.md |
 | 2.5 | Secondary verification: grounding check (answer must cite retrieved chunks) | A | 35% | eval: ungrounded answers caught; test: citation validator | [x] citation check + gpt-5.4-nano claim check; sanity set 9/9 |
 | 2.6 | Out-of-scope / low-confidence queries route to a human escalation state | A | 35% | eval: out-of-scope set → escalation rate; UI: escalation banner; Loom | [x] typed GuardrailDecision; escalation event + UI card (suggested / ticket) |
 | 2.7 | Retrieved documents treated as data, never instructions | A/P | 35% | eval/test: injected-instruction doc doesn't change behaviour | [x] quarantine + data framing; 0/30 replies approve a refund; evals/RESULTS.md poison section |
@@ -47,7 +47,7 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done and demonstrated.
 | 3.6 | Policy enforced in tool code (refund limits, tier, identity, contract) not prompts | A/P | 35%/15% | test: tool refuses even when LLM asks | [x] lib/tools/policy.ts; 16 tool tests; live S2/S3/S5/S6 refusals by code |
 | 3.7 | Stream live status when a tool starts/completes | V/A | 25%/35% | UI: step chips; SSE event log | [x] SSE step events per tool |
 | 3.8 | Voice tool calls go through the same backend tool + guardrail endpoint | A/C | 35%/25% | Loom: voice refund shows in same trace drawer; test: endpoint | [x] /api/voice/tool runs the same runToolStep; parity unit test; VOICE_CHECKS #1, #3 |
-| 3.9 | Routing (tool choice / escalation decision) has a measurable eval | A | 35% | eval: routing accuracy over labeled turns | [x] 6 live scenarios per change (latest 6/6) in evals/AGENT_RESULTS.md |
+| 3.9 | Routing (tool choice / escalation decision) has a measurable eval | A | 35% | eval: routing accuracy over labeled turns | [x] 6 live scenarios per change; latest 18/18 (3 runs per scenario, 2026-11-24) in evals/AGENT_RESULTS.md |
 
 ## 4. Resilience & state
 
@@ -64,8 +64,8 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done and demonstrated.
 
 | # | Requirement | Cat | Wt | How we demonstrate it | Status |
 |---|---|---|---|---|---|
-| 5.1 | Modular separation: UI / agent / tools / vector store (lib/agent, lib/tools, lib/rag, lib/guardrails, lib/voice, lib/observability, lib/session, lib/db) | C | 25% | repo layout; README diagram | [~] |
-| 5.2 | Clean typing: TS strict, shared types in lib/types.ts, typed SSE events | C | 25% | `npm run typecheck` passes | [~] |
+| 5.1 | Modular separation: UI / agent / tools / vector store (lib/agent, lib/tools, lib/rag, lib/guardrails, lib/voice, lib/observability, lib/session, lib/db) | C | 25% | repo layout; README diagram | [x] layers enforced by tests/architecture.test.ts + ESLint rule (D49); voice client split (D50) |
+| 5.2 | Clean typing: TS strict, shared types in lib/types.ts, typed SSE events | C | 25% | `npm run typecheck` passes | [x] typecheck clean; tool outcomes as discriminated unions and shared API payloads in lib/contracts.ts |
 | 5.3 | No secrets in git or browser; ephemeral voice tokens | P | 15% | .env.example; network tab shows only ephemeral key | [x] ephemeral ek_ keys only; no sk- in any response or bundle (VOICE_CHECKS #8, unit test) |
 
 ## 6. Deliverables
