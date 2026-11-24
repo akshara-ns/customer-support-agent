@@ -93,15 +93,17 @@ export async function runToolStep(a: ToolStepArgs): Promise<{ outcome: ToolOutco
   a.emit({ type: "step_completed", stepId: a.stepId, tool: a.call.name, label, ok: outcome.result.ok, durationMs, summary: summarizeOutcome(outcome) });
   await log({ type: "tool_result", toolCallId: a.call.id, ...outcome });
 
+  const policyEscalation =
+    outcome.name === "get_policy" && outcome.result.ok && outcome.result.data.status === "needs_escalation" ? outcome.result.data : null;
+  const confidence = policyEscalation?.confidence;
   if (outcome.effects.ticket) {
     const ticket = outcome.effects.ticket;
-    a.emit({ type: "escalation", kind: "ticket", reason: ticket.reason, ticket: ticketSummary(ticket) });
-    await log({ type: "escalation", kind: "ticket", reason: ticket.reason, ticket });
-  }
-  if (outcome.name === "get_policy" && outcome.result.ok && outcome.result.data.status === "needs_escalation") {
-    const reason = outcome.result.data.reason;
-    a.emit({ type: "escalation", kind: "suggested", reason });
-    await log({ type: "escalation", kind: "suggested", reason });
+    a.emit({ type: "escalation", kind: "ticket", reason: ticket.reason, confidence, ticket: ticketSummary(ticket) });
+    await log({ type: "escalation", kind: "ticket", reason: ticket.reason, confidence, ticket });
+  } else if (policyEscalation) {
+    // Not verified: the handoff is offered; the ticket needs the customer's identity.
+    a.emit({ type: "escalation", kind: "suggested", reason: policyEscalation.reason, confidence });
+    await log({ type: "escalation", kind: "suggested", reason: policyEscalation.reason, confidence });
   }
   if (!outcome.result.ok && (outcome.result.error.code === "TOOL_FAILURE" || outcome.result.error.code === "SERVICE_UNAVAILABLE")) {
     const code = outcome.result.error.code === "TOOL_FAILURE" ? "tool_failed" : "retrieval_unavailable";

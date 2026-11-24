@@ -53,13 +53,21 @@ function EscalationCard({ m, onCreate }: { m: ChatMessage; onCreate: () => void 
           Priority {e.ticket.priority}
           {e.ticket.responseTarget && ` · first response within ${e.ticket.responseTarget}`}
         </span>
+        {e.confidence !== undefined && (
+          <span className="small">
+            Reason: {e.reason.replace(/_/g, " ")} · retrieval confidence {e.confidence.toFixed(2)}
+          </span>
+        )}
       </div>
     );
   }
   return (
     <div className="escalation escalation-suggested" role="status">
       <strong>Not confident enough to answer</strong>
-      <span>The knowledge base doesn&apos;t cover this reliably ({e.reason.replace(/_/g, " ")}).</span>
+      <span>
+        The knowledge base doesn&apos;t cover this reliably ({e.reason.replace(/_/g, " ")}
+        {e.confidence !== undefined && `, confidence ${e.confidence.toFixed(2)}`}). Verify your account to have a person pick it up.
+      </span>
       <button type="button" onClick={onCreate}>
         Create a ticket for a human
       </button>

@@ -105,7 +105,11 @@ type Handler<K extends ToolName> = (
 /** One handler per tool, typed end to end: input from its zod schema, output from ToolOutputs. */
 const HANDLERS: { [K in ToolName]: Handler<K> } = {
   verify_identity: (a, c, d) => verifyIdentity(a, c, d),
-  get_policy: async (a, c, d) => ({ result: await getPolicy(a, c, d), effects: {} }),
+  get_policy: async (a, c, d) => {
+    const result = await getPolicy(a, c, d);
+    const ticket = result.ok && result.data.status === "needs_escalation" ? result.data.ticket : undefined;
+    return { result, effects: ticket ? { ticket } : {} };
+  },
   issue_refund: async (a, c, d) => {
     const result = await issueRefund(a, c, d);
     return { result, effects: !result.ok && result.error.ticket ? { ticket: result.error.ticket } : {} };

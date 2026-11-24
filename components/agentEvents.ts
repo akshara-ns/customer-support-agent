@@ -18,7 +18,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   text: string;
   steps: Step[];
-  escalation?: { kind: "ticket" | "suggested"; reason: string; ticket?: TicketSummary };
+  escalation?: { kind: "ticket" | "suggested"; reason: string; confidence?: number; ticket?: TicketSummary };
   error?: { code: ErrorCode; message: string; retryable: boolean; tool?: string };
   /** Shown while the client resumes a dropped stream from the last event it received. */
   reconnecting?: { attempt: number; after: number };
@@ -49,7 +49,7 @@ export function applyAgentEvent(m: ChatMessage, e: AgentEvent): ChatMessage {
       return { ...m, steps: exists ? m.steps.map((s) => (s.stepId === e.stepId ? done : s)) : [...m.steps, done] };
     }
     case "escalation":
-      return { ...m, escalation: { kind: e.kind, reason: e.reason, ticket: e.ticket } };
+      return { ...m, escalation: { kind: e.kind, reason: e.reason, confidence: e.confidence, ticket: e.ticket } };
     case "error":
       return { ...m, error: { code: e.code, message: e.message, retryable: e.retryable, tool: e.tool } };
     case "retrying":

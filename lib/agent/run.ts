@@ -191,6 +191,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
           actions.tickets.push(outcome.effects.ticket);
           escalated = true;
         }
+        // The guardrail escalated (ticket opened, or offered before verification): the turn ends escalated.
+        if (outcome.name === "get_policy" && outcome.result.ok && outcome.result.data.status === "needs_escalation") escalated = true;
         go("planning");
       }
     }

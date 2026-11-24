@@ -42,6 +42,8 @@ export async function runVoiceTool(
     emit: (e) => emitted.push(e),
     trace,
   });
+  // Voice has no turn loop: record the escalated state on the turn's trace so the drawer shows it.
+  if (emitted.some((e) => e.type === "escalation")) trace.mark("agent", "turn_end", { state: "escalated", channel: "voice" });
   if (deps.traceSink) await deps.traceSink(trace, "voice").catch((err) => console.error("voice trace persist failed", err));
   return { output: toolOutputForModel(outcome), ok: outcome.result.ok, events: emitted };
 }

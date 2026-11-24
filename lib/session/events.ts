@@ -10,7 +10,7 @@ export type SessionEvent =
   | { type: "assistant_message"; text: string; corrections?: string[]; interrupted?: boolean }
   | { type: "tool_call"; toolCallId: string; name: string; arguments: string; content?: string }
   | ({ type: "tool_result"; toolCallId: string } & ToolOutcome)
-  | { type: "escalation"; kind: "ticket" | "suggested"; reason: string; ticket?: Ticket }
+  | { type: "escalation"; kind: "ticket" | "suggested"; reason: string; confidence?: number; ticket?: Ticket }
   | { type: "error"; code: ErrorCode; message: string };
 
 export interface StoredEvent {

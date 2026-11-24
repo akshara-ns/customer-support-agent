@@ -89,7 +89,15 @@ export interface VerifyOutput {
 
 export type PolicyAnswer =
   | { status: "answered"; answer: string; citations: string[]; confidence: number }
-  | { status: "needs_escalation"; reason: string; confidence: number };
+  | {
+      status: "needs_escalation";
+      reason: string;
+      confidence: number;
+      /** Opened in code when the customer is verified (low_confidence, P3). */
+      ticket?: Ticket;
+      /** What the agent must tell the customer (handoff with the ticket, or an offer). */
+      next_step?: string;
+    };
 
 export type PolicyOutput = PolicyAnswer & { tier_scope: Tier | "general" };
 

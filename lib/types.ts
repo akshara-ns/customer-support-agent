@@ -27,7 +27,7 @@ export type AgentEvent =
   | { type: "step_started"; stepId: string; tool: string; label: string }
   | { type: "step_completed"; stepId: string; tool: string; label: string; ok: boolean; durationMs: number; summary: string }
   | { type: "token"; text: string }
-  | { type: "escalation"; kind: "ticket" | "suggested"; reason: string; ticket?: TicketSummary }
+  | { type: "escalation"; kind: "ticket" | "suggested"; reason: string; confidence?: number; ticket?: TicketSummary }
   | { type: "error"; code: ErrorCode; message: string; retryable: boolean; tool?: string }
   | { type: "retrying"; attempt: number; attempts: number; delayMs: number; reason: ErrorCode }
   | { type: "trace"; span: TraceSpan }

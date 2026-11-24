@@ -134,6 +134,36 @@ export async function getPolicy(
 ): Promise<ToolResult<PolicyOutput>> {
   const tier = ctx.customer?.tier ?? null;
   const answer = await deps.policy.search(input.question, tier, ctx.trace);
+  if (answer.status === "needs_escalation") {
+    // The guardrail escalated: this is a handoff, not just a suggestion. Verified customers get a ticket now.
+    if (ctx.customer) {
+      const ticket = await openTicket(
+        {
+          reason: "low_confidence",
+          summary: `Question the knowledge base couldn't answer reliably (${answer.reason}, confidence ${answer.confidence}): ${input.question}`,
+        },
+        ctx,
+        deps,
+      );
+      return {
+        ok: true,
+        data: {
+          ...answer,
+          tier_scope: tier ?? "general",
+          ticket,
+          next_step: `Tell the customer you couldn't answer this reliably and have handed it to a person: ticket ${ticket.ticketNumber} (${ticket.priority}), first response within ${ticket.responseTarget}. Don't create another ticket.`,
+        },
+      };
+    }
+    return {
+      ok: true,
+      data: {
+        ...answer,
+        tier_scope: "general",
+        next_step: "Tell the customer you can't answer this reliably and offer to hand it to a person; opening a ticket needs their email and support PIN.",
+      },
+    };
+  }
   return { ok: true, data: { ...answer, tier_scope: tier ?? "general" } };
 }
 
