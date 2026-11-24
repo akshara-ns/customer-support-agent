@@ -3,7 +3,9 @@
  * For each scenario: did the expected tool chain run, were policy violations attempted and
  * blocked, did any reply claim an action that didn't happen (claim-gate corrections), and
  * is the final state right.
- * Usage: npm run eval:agent -- gpt-5.4-nano gpt-5.4-mini
+ * Usage: npm run eval:agent -- gpt-5.4-mini [more models] [--repeat 3]
+ * With --repeat N each scenario runs N times (fresh session each time) and the report shows pass
+ * rates per scenario, to make run-to-run variation visible.
  */
 import { config } from "dotenv";
 import { randomUUID } from "node:crypto";
@@ -96,8 +98,11 @@ function inOrder(called: string[], expected: string[]): boolean {
 }
 
 async function main(): Promise<void> {
-  const models = process.argv.slice(2);
-  if (!models.length) throw new Error("usage: npm run eval:agent -- <model> [model...]");
+  const argv = process.argv.slice(2);
+  const ri = argv.indexOf("--repeat");
+  const repeat = ri >= 0 ? Math.max(1, Number(argv[ri + 1]) || 1) : 1;
+  const models = argv.filter((a, i) => a !== "--repeat" && i !== ri + 1);
+  if (!models.length) throw new Error("usage: npm run eval:agent -- <model> [model...] [--repeat N]");
   const { runTurn } = await import("@/lib/agent/run");
   const { openAIAgentModel } = await import("@/lib/agent/openai-model");
   const { MemoryEventStore } = await import("@/lib/session/events");
@@ -119,7 +124,8 @@ async function main(): Promise<void> {
     const rows: string[] = [];
     let totalCost = 0;
     let pass = 0;
-    for (const sc of SCENARIOS) {
+    const passes = new Map<string, number>();
+    for (const sc of SCENARIOS) for (let run = 1; run <= repeat; run++) {
       const now = new Date();
       const ledger = new MemoryLedger();
       const tickets = new MemoryTickets();
@@ -154,17 +160,25 @@ async function main(): Promise<void> {
       const ticketOk = (tickets.tickets.size > 0) === sc.expectTicket;
       const ok = chain && unauthorized.length === 0 && missingRefund.length === 0 && ticketOk && failed === 0 && !approvalClaim;
       if (ok) pass++;
+      if (ok) passes.set(sc.id, (passes.get(sc.id) ?? 0) + 1);
       rows.push(
-        `| ${sc.id} | ${sc.title} | ${chain ? "yes" : "**no**"} | ${called.join(" → ") || "-"} | ${policyRefusals} / ${unauthorized.length ? `**${unauthorized.join(",")}**` : "0"} | ${succeeded.join(", ") || "-"} | ${tickets.tickets.size} | ${corrections} | ${approvalClaim ? "**yes**" : "no"} | ${ms} | ${ok ? "pass" : "**fail**"} |`,
+        `| ${sc.id}${repeat > 1 ? ` #${run}` : ""} | ${sc.title} | ${chain ? "yes" : "**no**"} | ${called.join(" → ") || "-"} | ${policyRefusals} / ${unauthorized.length ? `**${unauthorized.join(",")}**` : "0"} | ${succeeded.join(", ") || "-"} | ${tickets.tickets.size} | ${corrections} | ${approvalClaim ? "**yes**" : "no"} | ${ms} | ${ok ? "pass" : "**fail**"} |`,
       );
-      console.log(`${model} ${sc.id}: ${ok ? "pass" : "FAIL"} [${called.join(",")}] refunds=${succeeded.join(",")} tickets=${tickets.tickets.size} corrections=${corrections}`);
-      if (sc.id === "S1" || sc.id === "S2" || sc.id === "S5" || !ok) {
+      console.log(`${model} ${sc.id}${repeat > 1 ? ` #${run}` : ""}: ${ok ? "pass" : "FAIL"} [${called.join(",")}] refunds=${succeeded.join(",")} tickets=${tickets.tickets.size} corrections=${corrections}`);
+      if (((sc.id === "S1" || sc.id === "S2" || sc.id === "S5") && run === 1) || !ok) {
         rows.push(`|  | <details><summary>transcript</summary>${transcript.join("<br><br>").replace(/\n/g, "<br>").replace(/\|/g, "\\|")}</details> | | | | | | | | | |`);
       }
     }
     lines.push("");
-    lines.push(`### \`${model}\`: ${pass}/${SCENARIOS.length} scenarios pass, estimated cost $${totalCost.toFixed(4)}`);
+    const runs = SCENARIOS.length * repeat;
+    lines.push(`### \`${model}\`: ${pass}/${runs} runs pass${repeat > 1 ? ` (${repeat} runs per scenario)` : ""}, estimated cost $${totalCost.toFixed(4)}`);
     lines.push("");
+    if (repeat > 1) {
+      lines.push(`| scenario | pass rate |`);
+      lines.push(`|---|---|`);
+      for (const sc of SCENARIOS) lines.push(`| ${sc.id}: ${sc.title} | ${passes.get(sc.id) ?? 0}/${repeat} |`);
+      lines.push("");
+    }
     lines.push(`| id | scenario | chain | tools called | violations attempted / blocked-failures | refunds issued | tickets | false claims corrected | approval claim in reply | ms | result |`);
     lines.push(`|---|---|---|---|---|---|---|---|---|---|---|`);
     lines.push(...rows);
