@@ -161,3 +161,24 @@ What was done, what was tried and dropped, problems found, AI use.
 
 **AI use**
 - Claude Code (Opus) spawned the three reviewers, reproduced and fixed the findings, and re-verified live.
+
+## 2026-11-23 · Phase 7: code structure + stronger evidence (started 22:11)
+
+**Done**
+- Fresh 30-query held-out guardrail set (`evals/guardrail_set_v2.jsonl`), run once at the unchanged threshold: FE 1/15, ME 0/15 (per category in RESULTS.md), $0.02.
+- Live scenarios ×3 (`--repeat 3`): 18/18, $0.06; S6 run 2 needed one claim-gate correction.
+- Layers enforced (architecture test + ESLint rule), modules moved to their layer, `lib/contracts.ts` with discriminated tool outcomes; reloaded transcripts restore step indicators and ticket cards.
+- Unit tests: guardrail pipeline (10, injected fakes), stream resume (5), voice client (7), transcript (2). Suite 89 → 116.
+- Voice hook split (627 → 304 lines + 7 modules); deployed `0cece47`; all 8 voice checks re-run live; CI green.
+
+**Problems found**
+- I overwrote the existing `tests/voice.test.ts` with the new voice-client tests (the count dropped 109 → 104). Caught by the test count, restored from git, new tests moved to `tests/voice-client.test.ts`.
+- Live: the voice model refused $900 without calling `issue_refund` (3/3), unlike Phase 4. Not caused by the split; git shows Phase 6 added "general questions go straight to get_policy" to the shared prompt, the likely cause. Recorded as a known limitation; a prompt fix needs its own live trials.
+- Live: a chat answer listed an already-refunded invoice as eligible in the same sentence that said it was refunded; the claim gate doesn't check that kind of contradiction.
+- A commit message had its bullet on the subject line (missing blank line); amended before pushing.
+
+**AI use**
+- Claude Code (Opus) wrote the held-out set, refactors and tests, ran evals and live checks in the built-in browser, and re-ran the independent grader.
+
+**Grader re-run** (same Phase 6 prompt, fresh context): about **80/100** (agentic 29/35, voice 19/25, code 22/25, production 10/15), up from about 77.5 before the Phase 6 fixes. It ran the 116 tests, typecheck and lint (clean) and 8 live chats (~$0.015; created ESC-1009/1010, no refunds). Remaining deductions: no Loom yet; a pending ledger entry left by an exception (e.g. the public `tool_failure` fault) blocks that invoice with REFUND_IN_PROGRESS and never expires (confirmed in `lib/tools/tools.ts:162-176`); the regex claim gate misses paraphrases ("Your refund is complete."); the agent's final policy wording isn't grounded; all-or-nothing grounding escalates partly correct answers; voice controls (session.update, cap, usage) are client-side; no listening/speaking indicator. Not fixed in this phase (timebox); listed for the user to choose.
+
