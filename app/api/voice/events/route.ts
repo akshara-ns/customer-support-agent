@@ -20,8 +20,8 @@ const Body = z.object({
   sessionId: z.uuid(),
   turnId: z.uuid(),
   event: z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("user_transcript"), text: z.string().trim().min(1).max(4000) }),
-    z.object({ kind: z.literal("assistant_transcript"), text: z.string().trim().min(1).max(8000), interrupted: z.boolean() }),
+    z.object({ kind: z.literal("user_transcript"), text: z.string().trim().min(1).max(4000), at: z.number().int().positive().optional() }),
+    z.object({ kind: z.literal("assistant_transcript"), text: z.string().trim().min(1).max(8000), interrupted: z.boolean(), at: z.number().int().positive().optional() }),
     z.object({
       kind: z.literal("usage"),
       model: z.string().max(64),

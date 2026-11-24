@@ -6,8 +6,9 @@ import type { RefundReceipt, Ticket, ToolError, ToolOutcome, VerifiedCustomer } 
 import type { Channel, ErrorCode } from "@/lib/types";
 
 export type SessionEvent =
-  | { type: "user_message"; text: string }
-  | { type: "assistant_message"; text: string; corrections?: string[]; interrupted?: boolean }
+  /** clientReported: a voice transcript posted by the browser (not produced by our server); at: realtime item time. */
+  | { type: "user_message"; text: string; clientReported?: boolean; at?: number }
+  | { type: "assistant_message"; text: string; corrections?: string[]; interrupted?: boolean; clientReported?: boolean; at?: number }
   | { type: "tool_call"; toolCallId: string; name: string; arguments: string; content?: string }
   | ({ type: "tool_result"; toolCallId: string } & ToolOutcome)
   | { type: "escalation"; kind: "ticket" | "suggested"; reason: string; confidence?: number; ticket?: Ticket }
@@ -66,7 +67,35 @@ function toolContent(o: ToolOutcome): string {
  * Rebuilds chat context from the log. Keeps the most recent `maxEvents`, trimmed forward to
  * a user message so a tool call is never separated from its result.
  */
+/** Labels for browser-reported voice transcripts in the model's context (they are not server records). */
+export const CLIENT_REPORTED_USER = "[voice transcript]";
+export const CLIENT_REPORTED_ASSISTANT = "[voice transcript reported by the caller's browser; not a record of actions]";
+
+const isClientReported = (e: SessionEvent) => (e.type === "user_message" || e.type === "assistant_message") && e.clientReported === true;
+
+/**
+ * Browser-posted transcripts arrive asynchronously, so their log order can differ from what was said.
+ * Each run of adjacent client-reported messages is stably sorted by its realtime item time.
+ */
+export function orderClientReported(events: StoredEvent[]): StoredEvent[] {
+  const out = [...events];
+  for (let i = 0; i < out.length; ) {
+    if (!isClientReported(out[i].event)) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < out.length && isClientReported(out[j].event)) j++;
+    const at = (e: StoredEvent) => ("at" in e.event && typeof e.event.at === "number" ? e.event.at : Number.MAX_SAFE_INTEGER);
+    const run = out.slice(i, j).map((e, k) => ({ e, k })).sort((a, b) => at(a.e) - at(b.e) || a.k - b.k).map((x) => x.e);
+    out.splice(i, j - i, ...run);
+    i = j;
+  }
+  return out;
+}
+
 export function buildContext(events: StoredEvent[], maxEvents = 60): ContextMessage[] {
+  events = orderClientReported(events);
   let start = Math.max(0, events.length - maxEvents);
   while (start > 0 && start < events.length && events[start].event.type !== "user_message") start++;
   const window = events.slice(start);
@@ -76,10 +105,10 @@ export function buildContext(events: StoredEvent[], maxEvents = 60): ContextMess
   for (const { event } of window) {
     switch (event.type) {
       case "user_message":
-        out.push({ role: "user", content: event.text });
+        out.push({ role: "user", content: event.clientReported ? `${CLIENT_REPORTED_USER} ${event.text}` : event.text });
         break;
       case "assistant_message":
-        out.push({ role: "assistant", content: event.text });
+        out.push({ role: "assistant", content: event.clientReported ? `${CLIENT_REPORTED_ASSISTANT} ${event.text}` : event.text });
         break;
       case "tool_call": {
         // Emit each call immediately followed by its result (voice can log a transcript in between);

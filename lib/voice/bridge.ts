@@ -73,8 +73,8 @@ export function realtimeCostUsd(model: string, u: RealtimeUsage): number {
 }
 
 export type VoiceEvent =
-  | { kind: "user_transcript"; text: string }
-  | { kind: "assistant_transcript"; text: string; interrupted: boolean }
+  | { kind: "user_transcript"; text: string; at?: number }
+  | { kind: "assistant_transcript"; text: string; interrupted: boolean; at?: number }
   | { kind: "usage"; model: string; usage: RealtimeUsage; responseId?: string; latencyMs?: number };
 
 export interface TraceWriter {
@@ -103,7 +103,7 @@ export async function recordVoiceEvent(
 ): Promise<{ flags: string[]; costUsd?: number }> {
   await deps.events.ensureSession(sessionId);
   if (ev.kind === "user_transcript") {
-    await deps.events.append(sessionId, turnId, "voice", { type: "user_message", text: redactText(ev.text) });
+    await deps.events.append(sessionId, turnId, "voice", { type: "user_message", text: redactText(ev.text), clientReported: true, at: ev.at });
     return { flags: [] };
   }
   if (ev.kind === "assistant_transcript") {
@@ -146,6 +146,9 @@ export async function recordVoiceEvent(
       type: "assistant_message",
       text: ev.text,
       interrupted: ev.interrupted,
+      // Posted by the browser: stored as reported, never as a record of what our system did.
+      clientReported: true,
+      at: ev.at,
       corrections: gate.corrections.map((c) => c.reason),
     });
     return { flags };

@@ -62,6 +62,7 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
       c.turnId = uuid();
       const itemId = String(ev.item_id ?? uuid());
       c.itemTurn.set(itemId, c.turnId);
+      c.itemAt.set(itemId, Date.now());
       upsert(`vu-${itemId}`, voiceMsg(`vu-${itemId}`, "user"), (m) => ({ ...m, text: "…", streaming: true }));
       d.interrupt();
       d.setActivity?.("listening");
@@ -77,7 +78,7 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
       const text = String(ev.transcript ?? "").trim();
       const id = `vu-${itemId}`;
       upsert(id, voiceMsg(id, "user"), (m) => ({ ...m, text: text || "(inaudible)", streaming: false }));
-      if (text) void post("/api/voice/events", { sessionId, turnId: c.itemTurn.get(itemId) ?? c.turnId, event: { kind: "user_transcript", text } });
+      if (text) void post("/api/voice/events", { sessionId, turnId: c.itemTurn.get(itemId) ?? c.turnId, event: { kind: "user_transcript", text, at: c.itemAt.get(itemId) } });
       break;
     }
     case "response.created": {
@@ -90,6 +91,7 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
         interrupted: false,
         truncateConfirmed: false,
         logged: false,
+        createdAt: Date.now(),
         calls: [],
       });
       c.activeResponseId = resp.id;

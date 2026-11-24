@@ -39,6 +39,8 @@ export interface ResponseState {
   heardText?: string;
   truncateConfirmed: boolean;
   logged: boolean;
+  /** Wall-clock time the response was created (realtime item time for the transcript log). */
+  createdAt?: number;
   calls: Promise<{ callId: string; output: string }>[];
   /** Tool outputs for this response were sent back to the model (or abandoned). */
   toolsReturned?: boolean;
@@ -64,6 +66,8 @@ export interface VoiceRuntime {
   stopping: boolean;
   turnId: string;
   itemTurn: Map<string, string>;
+  /** Wall-clock time each caller item started (speech_started), sent with its transcript. */
+  itemAt: Map<string, number>;
   responses: Map<string, ResponseState>;
   activeResponseId: string | null;
   /** Response whose audio is playing now. Playback outlasts response.done by seconds. */
@@ -94,6 +98,7 @@ export function createRuntime(): VoiceRuntime {
     stopping: false,
     turnId: "",
     itemTurn: new Map(),
+    itemAt: new Map(),
     responses: new Map(),
     activeResponseId: null,
     playingResponseId: null,

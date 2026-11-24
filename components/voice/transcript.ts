@@ -31,7 +31,7 @@ export function logAssistant(resp: ResponseState, deps: { post: Post; sessionId:
     .post<{ flags: string[] }>("/api/voice/events", {
       sessionId: deps.sessionId,
       turnId: resp.turnId,
-      event: { kind: "assistant_transcript", text: spoken, interrupted: resp.interrupted },
+      event: { kind: "assistant_transcript", text: spoken, interrupted: resp.interrupted, at: resp.createdAt },
     })
     .then((res) => {
       if (res?.flags.length) deps.upsert(resp.msgId, voiceMsg(resp.msgId, "assistant"), (m) => ({ ...m, flags: res.flags }));

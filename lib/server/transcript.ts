@@ -4,7 +4,7 @@
  * reloaded conversation keeps its step indicators. Pure (unit-tested).
  */
 import { toolLabel, type TranscriptLine, type TranscriptStep } from "@/lib/contracts";
-import type { StoredEvent } from "@/lib/session/events";
+import { orderClientReported, type StoredEvent } from "@/lib/session/events";
 import { summarizeOutcome } from "@/lib/tools/step";
 import type { TicketSummary } from "@/lib/types";
 
@@ -18,7 +18,10 @@ export function buildTranscript(events: StoredEvent[]): TranscriptLine[] {
     return p;
   };
 
-  for (const { seq, turnId, channel, event } of events) {
+  const ordered = orderClientReported(events);
+  // Position in the ordered log (client-reported voice lines sorted by item time), used for the final order.
+  const position = new Map(ordered.map((e, i) => [e.seq, i]));
+  for (const { seq, turnId, channel, event } of ordered) {
     switch (event.type) {
       case "user_message":
         lines.push({ seq, channel, role: "user", text: event.text });
@@ -60,5 +63,5 @@ export function buildTranscript(events: StoredEvent[]): TranscriptLine[] {
   for (const p of pending.values()) {
     lines.push({ seq: p.seq, channel: p.channel, role: "assistant", text: "", steps: p.steps, ...(p.ticket ? { ticket: p.ticket } : {}) });
   }
-  return lines.sort((a, b) => a.seq - b.seq);
+  return lines.sort((a, b) => (position.get(a.seq) ?? a.seq) - (position.get(b.seq) ?? b.seq));
 }
