@@ -56,6 +56,50 @@ export interface TraceSpan {
   error?: string;
 }
 
+// ---- Customers and policy ----
+
+export const TIERS = ["free", "pro", "enterprise"] as const;
+export type Tier = (typeof TIERS)[number];
+export type ContractStatus = "active" | "expired" | "suspended";
+export type DocType = "policy" | "troubleshooting" | "faq";
+
+// ---- RAG ----
+
+/** A chunk returned by retrieval. `chunkKey` (e.g. "refund-policy#3") is what answers cite. */
+export interface RetrievedChunk {
+  chunkKey: string;
+  docId: string;
+  title: string;
+  section: string;
+  docType: DocType;
+  tiers: Tier[];
+  content: string;
+  /** Cosine similarity, 0..1 (higher is closer). */
+  score: number;
+  quarantined: boolean;
+}
+
+// ---- Guardrails ----
+
+export type EscalationReason =
+  | "low_retrieval_confidence"
+  | "answer_declined"
+  | "no_citations"
+  | "invalid_citation"
+  | "unsupported_claim"
+  | "grounding_check_failed";
+
+export interface Evidence {
+  chunkKey: string;
+  section: string;
+  score: number;
+}
+
+/** The guardrail's verdict. The agent and UI branch on `escalate`. */
+export type GuardrailDecision =
+  | { escalate: false; confidence: number; evidence: Evidence[] }
+  | { escalate: true; reason: EscalationReason; confidence: number; evidence: Evidence[]; detail: string };
+
 // ---- Health ----
 
 export interface DbHealth {

@@ -9,25 +9,32 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:check": "tsx scripts/db-check.ts"
+    "db:check": "tsx scripts/db-check.ts",
+    "ingest": "tsx --conditions=react-server scripts/ingest.ts",
+    "eval:guardrails": "tsx --conditions=react-server scripts/eval-guardrails.ts",
+    "eval:grounding": "tsx --conditions=react-server scripts/eval-grounding.ts",
+    "test": "vitest run",
+    "debug:query": "tsx --conditions=react-server scripts/debug-query.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.1",
     "next": "16.4.6",
+    "openai": "^7.63.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^18.0.10",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.1.1"
   },
   "engines": {
     "node": ">=20.9"
