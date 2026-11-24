@@ -62,6 +62,8 @@ Models: embeddings `text-embedding-3-small`, answers `gpt-5.4-mini`, grounding c
 | Calibration (20) | 1/12 (8%) | 0/8 (0%) | 0/12 (0%) | 5/8 (63%) |
 | **Held-out (10), run once** | **1/6 (17%)** | **0/4 (0%)** | 0/6 (0%) | 3/4 (75%) |
 
+*These counts use the original labels (q27 and q30 answerable). The labelling convention adopted later (`evals/LABELING.md`) changes both to should_escalate; see "Evidence summary with intervals" below for both rules.*
+
 Retrieval recall@5 (expected document in top 5, answerable queries): 18/18 (100%).
 Pipeline latency per query (retrieval + answer + grounding): median 1971 ms, max 3206 ms. Estimated cost of this run: $0.0244.
 
@@ -201,7 +203,11 @@ Retrieval recall@5 on v2 answerable queries: 15/15 (100%). Cost of this run: $0.
 <!-- evidence:start -->
 ## Evidence summary with intervals (`npm run eval:evidence`, 2026-11-24)
 
-Recomputed from the stored per-query decisions above, with the labels in the .jsonl sets after the labelling convention (`evals/LABELING.md`). Every rate is k/n with an exact 95% Clopper–Pearson interval. With n this small the intervals are wide: these numbers show behaviour, not tight error bounds. **Hard** = near-miss, tier-specific, approval demands and injections; **trivial** = clearly out of domain.
+Recomputed from the stored per-query decisions above. Every rate is k/n with an exact 95% Clopper–Pearson interval. With n this small the intervals are wide: these numbers show behaviour, not tight error bounds. **Hard** = near-miss, tier-specific, approval demands and injections; **trivial** = clearly out of domain.
+
+**Two labelling rules are reported.** The *current* rule (`evals/LABELING.md`: a query that only demands an approval should escalate) was **adopted after the original results had been seen**. It changes two v1 items (q27, q30) from answerable to should_escalate, and those two were the only false escalations in the original v1 results. So the rule change improves the v1 numbers. Both are shown so the effect is visible. v2 and the harder set (v3) were labelled under the current rule from the start (v2's approval demand v27 was already should_escalate).
+
+### Under the current rule (approval demands should escalate)
 
 **v1 calibration split (20; threshold chosen here, so not blind)**
 
@@ -242,4 +248,47 @@ Recomputed from the stored per-query decisions above, with the labels in the .js
 **How blind near-misses were caught** (8 items, all should_escalate): answer_declined 8. `answer_declined` = the answer model returned NOT_COVERED (abstained); `low_retrieval_confidence` = the similarity pre-filter; `unsupported_claim` / `no_citations` = the grounding gate.
 
 **All blind should-escalate items, by what caught them:** answer_declined 11, unsupported_claim 1, low_retrieval_confidence 8.
+
+### Under the original labels (before the rule; q27 and q30 answerable)
+
+**v1 calibration split (20; threshold chosen here, so not blind)**
+
+| Items | False escalations (answerable → escalated) | Missed escalations (should escalate → answered) |
+|---|---|---|
+| All (20) | 1/12 (8%, 95% CI 0%–38%) | 0/8 (0%, 95% CI 0%–37%) |
+| hard (11) | 1/6 (17%, 95% CI 0%–64%) | 0/5 (0%, 95% CI 0%–52%) |
+| ordinary in-scope (6) | 0/6 (0%, 95% CI 0%–46%) | 0/0 (n/a) |
+| trivial (out of domain) (3) | 0/0 (n/a) | 0/3 (0%, 95% CI 0%–71%) |
+
+**v1 held-out split (10; blind, run once)**
+
+| Items | False escalations (answerable → escalated) | Missed escalations (should escalate → answered) |
+|---|---|---|
+| All (10) | 1/6 (17%, 95% CI 0%–64%) | 0/4 (0%, 95% CI 0%–60%) |
+| hard (5) | 1/3 (33%, 95% CI 1%–91%) | 0/2 (0%, 95% CI 0%–84%) |
+| ordinary in-scope (3) | 0/3 (0%, 95% CI 0%–71%) | 0/0 (n/a) |
+| trivial (out of domain) (2) | 0/0 (n/a) | 0/2 (0%, 95% CI 0%–84%) |
+
+**v2 fresh held-out set (30; blind; latest run, 2026-11-24)**
+
+| Items | False escalations (answerable → escalated) | Missed escalations (should escalate → answered) |
+|---|---|---|
+| All (30) | 2/15 (13%, 95% CI 2%–40%) | 0/15 (0%, 95% CI 0%–22%) |
+| hard (18) | 2/9 (22%, 95% CI 3%–60%) | 0/9 (0%, 95% CI 0%–34%) |
+| ordinary in-scope (6) | 0/6 (0%, 95% CI 0%–46%) | 0/0 (n/a) |
+| trivial (out of domain) (6) | 0/0 (n/a) | 0/6 (0%, 95% CI 0%–46%) |
+
+**All blind items (v1 held-out + v2 = 40)**
+
+| Items | False escalations (answerable → escalated) | Missed escalations (should escalate → answered) |
+|---|---|---|
+| All (40) | 3/21 (14%, 95% CI 3%–36%) | 0/19 (0%, 95% CI 0%–18%) |
+| hard (23) | 3/12 (25%, 95% CI 5%–57%) | 0/11 (0%, 95% CI 0%–28%) |
+| ordinary in-scope (9) | 0/9 (0%, 95% CI 0%–34%) | 0/0 (n/a) |
+| trivial (out of domain) (8) | 0/0 (n/a) | 0/8 (0%, 95% CI 0%–37%) |
+
+**How blind near-misses were caught** (8 items, all should_escalate): answer_declined 8. `answer_declined` = the answer model returned NOT_COVERED (abstained); `low_retrieval_confidence` = the similarity pre-filter; `unsupported_claim` / `no_citations` = the grounding gate.
+
+**All blind should-escalate items, by what caught them:** answer_declined 11, low_retrieval_confidence 8.
+
 <!-- evidence:end -->

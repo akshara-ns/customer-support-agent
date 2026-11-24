@@ -12,7 +12,14 @@ interface Labelled {
   category: string;
   label: "answerable" | "should_escalate";
   split?: string;
+  /** Set on items relabelled by the convention; records the original label. */
+  label_note?: string;
 }
+
+/** "current": labels as in the .jsonl (approval demands should escalate). "original": the labels before that rule. */
+type Rule = "current" | "original";
+const labelUnder = (x: Labelled, rule: Rule): Labelled["label"] =>
+  rule === "original" && x.label_note?.includes("was answerable") ? "answerable" : x.label;
 interface Row {
   id: string;
   category: string;
@@ -29,7 +36,7 @@ const results = readFileSync("evals/RESULTS.md", "utf8");
 const cells = (line: string) => line.split("|").slice(1, -1).map((c) => c.trim());
 
 /** v1 per-query table: | id | split | category | tier | label | top-1 | margin | reason | decision | ... */
-function v1Rows(): Row[] {
+function v1Rows(rule: Rule): Row[] {
   const set = readSet("evals/guardrail_set.jsonl");
   const section = results.slice(results.indexOf("### Per-query detail"), results.indexOf("### Poisoned document"));
   return section
@@ -38,12 +45,12 @@ function v1Rows(): Row[] {
     .map(cells)
     .map((c) => {
       const s = set.get(c[0])!;
-      return { id: c[0], category: s.category, label: s.label, split: s.split ?? c[1], reason: c[7], escalated: c[8].startsWith("escalate") };
+      return { id: c[0], category: s.category, label: labelUnder(s, rule), split: s.split ?? c[1], reason: c[7], escalated: c[8].startsWith("escalate") };
     });
 }
 
 /** v2 per-query table: | id | category | tier | label | top-1 | decision | reason | answer | */
-function v2Rows(): Row[] {
+function v2Rows(rule: Rule): Row[] {
   const set = readSet("evals/guardrail_set_v2.jsonl");
   const section = results.slice(results.indexOf("<!-- heldout_v2:start -->"), results.indexOf("<!-- heldout_v2:end -->"));
   return section
@@ -52,7 +59,7 @@ function v2Rows(): Row[] {
     .map(cells)
     .map((c) => {
       const s = set.get(c[0])!;
-      return { id: c[0], category: s.category, label: s.label, split: "v2", reason: c[6], escalated: c[5].startsWith("escalate") };
+      return { id: c[0], category: s.category, label: labelUnder(s, rule), split: "v2", reason: c[6], escalated: c[5].startsWith("escalate") };
     });
 }
 
@@ -89,25 +96,39 @@ function caughtBy(rows: Row[]): string {
   return [...counts].map(([k, v]) => `${k} ${v}`).join(", ") || "none";
 }
 
-const v1 = v1Rows();
-const v2 = v2Rows();
-const v1test = v1.filter((r) => r.split === "test" || r.split === "held-out");
-const v1cal = v1.filter((r) => r.split === "calibration" || r.split === "calib");
-const nearMissBlind = [...v1test, ...v2].filter((r) => r.category === "near_miss");
+function block(rule: Rule): string[] {
+  const v1 = v1Rows(rule);
+  const v2 = v2Rows(rule);
+  const v1test = v1.filter((r) => r.split === "test" || r.split === "held-out");
+  const v1cal = v1.filter((r) => r.split === "calibration" || r.split === "calib");
+  const blind = [...v1test, ...v2];
+  const nearMissBlind = blind.filter((r) => r.category === "near_miss");
+  return [
+    ...table("v1 calibration split (20; threshold chosen here, so not blind)", v1cal, byGroup(v1cal)),
+    ...table("v1 held-out split (10; blind, run once)", v1test, byGroup(v1test)),
+    ...table("v2 fresh held-out set (30; blind; latest run, 2026-11-24)", v2, byGroup(v2)),
+    ...table("All blind items (v1 held-out + v2 = 40)", blind, byGroup(blind)),
+    `**How blind near-misses were caught** (${nearMissBlind.length} items, all should_escalate): ${caughtBy(nearMissBlind)}. \`answer_declined\` = the answer model returned NOT_COVERED (abstained); \`low_retrieval_confidence\` = the similarity pre-filter; \`unsupported_claim\` / \`no_citations\` = the grounding gate.`,
+    "",
+    `**All blind should-escalate items, by what caught them:** ${caughtBy(blind.filter((r) => r.label === "should_escalate"))}.`,
+    "",
+  ];
+}
 
 const lines = [
   "<!-- evidence:start -->",
   `## Evidence summary with intervals (\`npm run eval:evidence\`, ${new Date().toISOString().slice(0, 10)})`,
   "",
-  "Recomputed from the stored per-query decisions above, with the labels in the .jsonl sets after the labelling convention (`evals/LABELING.md`). Every rate is k/n with an exact 95% Clopper–Pearson interval. With n this small the intervals are wide: these numbers show behaviour, not tight error bounds. **Hard** = near-miss, tier-specific, approval demands and injections; **trivial** = clearly out of domain.",
+  "Recomputed from the stored per-query decisions above. Every rate is k/n with an exact 95% Clopper–Pearson interval. With n this small the intervals are wide: these numbers show behaviour, not tight error bounds. **Hard** = near-miss, tier-specific, approval demands and injections; **trivial** = clearly out of domain.",
   "",
-  ...table("v1 calibration split (20; threshold chosen here, so not blind)", v1cal, byGroup(v1cal)),
-  ...table("v1 held-out split (10; blind, run once)", v1test, byGroup(v1test)),
-  ...table("v2 fresh held-out set (30; blind; latest run, 2026-11-24)", v2, byGroup(v2)),
-  ...table("All blind items (v1 held-out + v2 = 40)", [...v1test, ...v2], byGroup([...v1test, ...v2])),
-  `**How blind near-misses were caught** (${nearMissBlind.length} items, all should_escalate): ${caughtBy(nearMissBlind)}. \`answer_declined\` = the answer model returned NOT_COVERED (abstained); \`low_retrieval_confidence\` = the similarity pre-filter; \`unsupported_claim\` / \`no_citations\` = the grounding gate.`,
+  "**Two labelling rules are reported.** The *current* rule (`evals/LABELING.md`: a query that only demands an approval should escalate) was **adopted after the original results had been seen**. It changes two v1 items (q27, q30) from answerable to should_escalate, and those two were the only false escalations in the original v1 results. So the rule change improves the v1 numbers. Both are shown so the effect is visible. v2 and the harder set (v3) were labelled under the current rule from the start (v2's approval demand v27 was already should_escalate).",
   "",
-  `**All blind should-escalate items, by what caught them:** ${caughtBy([...v1test, ...v2])}.`,
+  "### Under the current rule (approval demands should escalate)",
+  "",
+  ...block("current"),
+  "### Under the original labels (before the rule; q27 and q30 answerable)",
+  "",
+  ...block("original"),
   "<!-- evidence:end -->",
 ];
 
