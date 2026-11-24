@@ -31,3 +31,26 @@ What was done, what was tried and dropped, problems found, AI use.
 
 **AI use**
 - Claude Code (Opus) drafted the docs from BRIEF.md and the decided architecture, and scaffolded the app. All commands and outputs were run and checked in this session.
+
+## 2026-11-23 · Block 1–3: RAG + guardrails + calibrated eval (started 19:38)
+
+**Done**
+- Corpus: 11 policy docs in `data/policies` for a fictional SaaS, "Fernway Workspace" (tiers, refunds, contract status, account changes, billing disputes, 3 troubleshooting guides, escalation, privacy, plus one poisoned partner FAQ). 6 mock users in `data/mock_users.json`: one per tier, plus expired, suspended and already-refunded accounts.
+- Chunker (`lib/rag/chunker.ts`): section-aware, per-section tier tags, 52 chunks (median 66 tokens, max 188). Ingest (`npm run ingest`) is idempotent via a per-document content hash; a re-run skips all 11 docs.
+- Retrieval: cosine top-k in pgvector with the tier and quarantine filters in SQL. Guardrails: retrieval-confidence gate, citation check, LLM claim check, typed `GuardrailDecision`. Trace spans record latency, tokens and cost per step.
+- Evals: 30-query labelled set (20/10 split, fixed up front), `npm run eval:guardrails`, and a 9-item grounding-checker sanity set (`npm run eval:grounding`). Results in `evals/RESULTS.md`.
+- `/api/rag/search` debug endpoint; vitest: 21 tests (chunker, citations, confidence, injection scan, live tier-filter and quarantine tests).
+
+**Tried and dropped / problems found**
+- `OPENAI_API_KEY` wasn't in `.env.local` at first, and the next key was expired; the user replaced it. A `vercel env add` waiting on an empty stdin value had to be stopped (nothing was added). macOS has no `timeout` command.
+- `server-only` throws under plain Node; scripts run with `tsx --conditions=react-server`, and vitest aliases it to a stub.
+- vitest 5 needs `@types/node` ≥ 22; bumped to 24.
+- Similarity alone can't separate near-miss questions from answerable ones; the threshold only reaches 0 missed at t ≥ 0.58 (67% false escalations). Asked the user: accepted 0.28 under the stated rule applied to the full two-gate guardrail.
+- Grounding checker `gpt-5-nano` failed its sanity check (6/8: blocked a correct paraphrase, passed an added claim); switched to `gpt-5.4-nano` (8/8). That forced a calibration re-run (run 2 = last blind held-out: 1/6 false, 0/4 missed).
+- Held-out q30 exposed a checker bug: "I can't approve…" was flagged as an unsupported claim. Fixed the prompt, added a regression item (g9), re-ran (run 3: same rates). The held-out set is no longer fully blind for that failure mode; q30 was not tuned further.
+- The answerer sometimes replies NOT_COVERED to "approve my refund" demands (q27); it fails safe (escalation). The phase 3 refund tool will handle these.
+- A Bash call with nested heredocs was refused by the shell safety check (it deleted nothing); redone with file edits.
+- LLM outputs vary between runs: one query (q04) flipped decision between runs with identical inputs.
+
+**AI use**
+- Claude Code (Opus) wrote the corpus, chunker, retrieval, guardrails, evals and tests, and ran every command shown. Threshold choice was confirmed by the user.
