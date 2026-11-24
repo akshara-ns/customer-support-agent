@@ -101,7 +101,7 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const ri = argv.indexOf("--repeat");
   const repeat = ri >= 0 ? Math.max(1, Number(argv[ri + 1]) || 1) : 1;
-  const models = argv.filter((a, i) => a !== "--repeat" && i !== ri + 1);
+  const models = argv.filter((_, i) => ri < 0 || (i !== ri && i !== ri + 1));
   if (!models.length) throw new Error("usage: npm run eval:agent -- <model> [model...] [--repeat N]");
   const { runTurn } = await import("@/lib/agent/run");
   const { openAIAgentModel } = await import("@/lib/agent/openai-model");
