@@ -6,10 +6,8 @@
  * transcripts and usage go to /api/voice/events (same session log as chat).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChatMessage } from "@/components/useChat";
-import { applyAgentEvent } from "@/components/useChat";
-import { TOOL_LABELS } from "@/lib/tools/labels";
-import type { AgentEvent } from "@/lib/types";
+import { applyAgentEvent, type ChatMessage } from "@/components/agentEvents";
+import { toolLabel, type VoiceSessionResponse, type VoiceToolResponse } from "@/lib/contracts";
 
 export type VoiceState = "idle" | "connecting" | "live" | "reconnecting" | "ended" | "error";
 export type MicMode = "mic" | "clips";
@@ -50,13 +48,6 @@ interface ResponseState {
 
 type Upsert = (id: string, make: () => ChatMessage, fn: (m: ChatMessage) => ChatMessage) => void;
 
-interface SessionInfo {
-  clientSecret: string;
-  model: string;
-  verified: boolean;
-  history: { role: "user" | "assistant"; text: string }[];
-  maxSeconds: number;
-}
 
 /** About 15 characters per second of speech: used to cut the transcript to what was heard. */
 const CHARS_PER_SECOND = 15;
@@ -278,11 +269,11 @@ export function useVoice({
       const msgId = resp?.msgId ?? `va-${responseId}`;
       const stepId = `${turnId}:${callId}`;
       upsert(msgId, voiceMsg(msgId, "assistant"), (m) =>
-        applyAgentEvent(m, { type: "step_started", stepId, tool: name, label: TOOL_LABELS[name] ?? name }),
+        applyAgentEvent(m, { type: "step_started", stepId, tool: name, label: toolLabel(name) }),
       );
       note("note", `tool → ${name}`);
       const simulate = takeFault?.() ?? undefined;
-      const p = post<{ output: string; events: AgentEvent[] }>("/api/voice/tool", { sessionId, turnId, callId, name, arguments: args, simulate }).then((res) => {
+      const p = post<VoiceToolResponse>("/api/voice/tool", { sessionId, turnId, callId, name, arguments: args, simulate }).then((res) => {
         for (const e of res?.events ?? []) upsert(msgId, voiceMsg(msgId, "assistant"), (m) => applyAgentEvent(m, e));
         const output =
           res?.output ??
@@ -465,7 +456,7 @@ export function useVoice({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId }),
         });
-        const info = (await res.json()) as SessionInfo & { message?: string };
+        const info = (await res.json()) as VoiceSessionResponse & { message?: string };
         if (!res.ok) throw new Error(info.message ?? `Voice session failed (${res.status})`);
         c.model = info.model;
         setMaxSeconds(info.maxSeconds);

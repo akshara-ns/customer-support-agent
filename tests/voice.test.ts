@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { runToolStep } from "@/lib/agent/tool-step";
+import { runToolStep } from "@/lib/tools/step";
 import { buildContext, MemoryEventStore } from "@/lib/session/events";
 import { customerDirectory } from "@/lib/tools/customers";
 import { MemoryLedger, MemoryTickets } from "@/lib/tools/memory-stores";
@@ -35,6 +35,8 @@ const verifyInChat = () =>
     emit: () => {},
   });
 
+const POLICY_OK = { status: "answered" as const, answer: "x", citations: [], confidence: 0.5, tier_scope: "general" as const };
+
 describe("voice token endpoint", () => {
   it("returns only the ephemeral key; the server key is used for the call but never returned", async () => {
     const SERVER_KEY = "sk-test-server-key-should-never-leak";
@@ -67,7 +69,7 @@ describe("voice token endpoint", () => {
         Response.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": String(r.retryAfterSec) } }),
     }));
     vi.doMock("@/lib/voice/session", () => ({ createVoiceSession: mint, openAISecretMinter: vi.fn() }));
-    vi.doMock("@/lib/voice/deps", () => ({ productionEvents: {}, productionToolDeps: () => ({}) }));
+    vi.doMock("@/lib/server/deps", () => ({ productionEvents: {}, productionToolDeps: () => ({}) }));
     vi.doMock("@/lib/env", () => ({ serverEnv: () => ({ OPENAI_API_KEY: "sk-test" }) }));
     const { POST } = await import("@/app/api/voice/session/route");
     const res = await POST(new Request("http://x/api/voice/session", { method: "POST", body: JSON.stringify({ sessionId: SESSION }) }));
@@ -75,7 +77,7 @@ describe("voice token endpoint", () => {
     expect(mint).not.toHaveBeenCalled();
     vi.doUnmock("@/lib/ratelimit");
     vi.doUnmock("@/lib/voice/session");
-    vi.doUnmock("@/lib/voice/deps");
+    vi.doUnmock("@/lib/server/deps");
     vi.doUnmock("@/lib/env");
   });
 
@@ -176,7 +178,7 @@ describe("voice session log", () => {
     await events.append(SESSION, TURN, "voice", { type: "user_message", text: "refund please" });
     await events.append(SESSION, TURN, "voice", { type: "tool_call", toolCallId: "t1", name: "get_policy", arguments: "{}" });
     await events.append(SESSION, TURN, "voice", { type: "user_message", text: "late transcript" });
-    await events.append(SESSION, TURN, "voice", { type: "tool_result", toolCallId: "t1", name: "get_policy", result: { ok: true, data: {} }, effects: {} });
+    await events.append(SESSION, TURN, "voice", { type: "tool_result", toolCallId: "t1", name: "get_policy", result: { ok: true, data: POLICY_OK }, effects: {} });
     const ctx = buildContext(await events.list(SESSION));
     const i = ctx.findIndex((m) => m.role === "assistant" && "tool_calls" in m && m.tool_calls);
     expect(ctx[i + 1]).toMatchObject({ role: "tool", tool_call_id: "t1" });

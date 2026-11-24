@@ -10,7 +10,9 @@ import { persistTrace } from "@/lib/observability/pg-traces";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { pgEventStore } from "@/lib/session/pg-store";
 import { StreamLog } from "@/lib/session/stream-log";
-import { productionToolDeps } from "@/lib/voice/deps";
+import { productionToolDeps } from "@/lib/server/deps";
+import { buildTranscript } from "@/lib/server/transcript";
+import type { TranscriptResponse } from "@/lib/contracts";
 import type { AgentEvent, SseEvent } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -116,16 +118,8 @@ export async function GET(request: Request): Promise<Response> {
   try {
     if (!(await authorizeSession(id.data, owner))) return errorResponse(403, "forbidden", "This conversation belongs to another browser.", requestId);
     const events = await pgEventStore.list(id.data);
-    type Line = { seq: number; channel: string; role: "user" | "assistant" | "ticket"; text: string; interrupted?: boolean };
-    const transcript = events.flatMap(({ seq, channel, event }): Line[] => {
-      if (event.type === "user_message") return [{ seq, channel, role: "user", text: event.text }];
-      if (event.type === "assistant_message") return [{ seq, channel, role: "assistant", text: event.text, interrupted: event.interrupted }];
-      if (event.type === "escalation" && event.ticket) {
-        return [{ seq, channel, role: "ticket", text: `${event.ticket.ticketNumber} (${event.ticket.priority})` }];
-      }
-      return [];
-    });
-    return withOwnerCookie(Response.json({ sessionId: id.data, transcript }, { headers: { "Cache-Control": "no-store", "x-request-id": requestId } }), owner);
+    const body: TranscriptResponse = { sessionId: id.data, transcript: buildTranscript(events) };
+    return withOwnerCookie(Response.json(body, { headers: { "Cache-Control": "no-store", "x-request-id": requestId } }), owner);
   } catch (err) {
     log.error("transcript failed", { requestId, sessionId: id.data }, err);
     return errorResponse(503, "unavailable", "Transcript temporarily unavailable.", requestId);

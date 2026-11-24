@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { MODELS } from "@/lib/config";
 import { checkCitations, type CitationCheck } from "@/lib/guardrails/citations";
-import { DATA_NOT_INSTRUCTIONS, renderDocuments } from "@/lib/guardrails/prompt";
+import { DATA_NOT_INSTRUCTIONS, renderDocuments } from "@/lib/rag/prompt";
 import { openai } from "@/lib/openai";
 import type { Trace } from "@/lib/observability/trace";
 import type { RetrievedChunk } from "@/lib/types";

@@ -4,21 +4,10 @@
  */
 import { z } from "zod";
 import { log } from "@/lib/log";
-import { createEscalationTicket, getPolicy, issueRefund, verifyIdentity, type VerifyEffects } from "@/lib/tools/tools";
+import { TICKET_REASONS, TOOL_NAMES, type ToolEffects, type ToolName, type ToolOutcome, type ToolOutputs, type ToolResult } from "@/lib/contracts";
+import { createEscalationTicket, getPolicy, issueRefund, verifyIdentity } from "@/lib/tools/tools";
 import type { ToolDeps } from "@/lib/tools/stores";
-import type { Ticket, TicketReason, ToolContext, ToolName, ToolResult } from "@/lib/tools/types";
-
-const TICKET_REASONS = [
-  "refund_over_limit",
-  "refund_outside_window",
-  "billing_error",
-  "account_suspended",
-  "low_confidence",
-  "customer_request",
-  "security",
-  "privacy_request",
-  "other",
-] as const satisfies readonly TicketReason[];
+import type { ToolContext } from "@/lib/tools/types";
 
 const Inputs = {
   // Strict formats: a placeholder or malformed value is INVALID_INPUT and never counts as a failed attempt.
@@ -28,7 +17,7 @@ const Inputs = {
   create_escalation_ticket: z.object({ reason: z.enum(TICKET_REASONS), summary: z.string().min(5).max(1000) }),
 } satisfies Record<ToolName, z.ZodType>;
 
-export { TOOL_LABELS } from "@/lib/tools/labels";
+export { TOOL_LABELS } from "@/lib/contracts";
 
 /** OpenAI function definitions. Order and text are fixed so the prompt prefix stays cacheable. */
 export const TOOL_DEFINITIONS = [
@@ -104,15 +93,37 @@ export const TOOL_DEFINITIONS = [
   },
 ] as const;
 
-export interface ToolOutcome {
-  /** "unknown_tool" when the model asked for a tool that doesn't exist. */
-  name: ToolName | "unknown_tool";
-  result: ToolResult<unknown>;
-  effects: VerifyEffects;
+export type { ToolOutcome } from "@/lib/contracts";
+
+type ToolInput<K extends ToolName> = z.infer<(typeof Inputs)[K]>;
+type Handler<K extends ToolName> = (
+  args: ToolInput<K>,
+  ctx: ToolContext,
+  deps: ToolDeps,
+) => Promise<{ result: ToolResult<ToolOutputs[K]>; effects: ToolEffects }>;
+
+/** One handler per tool, typed end to end: input from its zod schema, output from ToolOutputs. */
+const HANDLERS: { [K in ToolName]: Handler<K> } = {
+  verify_identity: (a, c, d) => verifyIdentity(a, c, d),
+  get_policy: async (a, c, d) => ({ result: await getPolicy(a, c, d), effects: {} }),
+  issue_refund: async (a, c, d) => {
+    const result = await issueRefund(a, c, d);
+    return { result, effects: !result.ok && result.error.ticket ? { ticket: result.error.ticket } : {} };
+  },
+  create_escalation_ticket: async (a, c, d) => {
+    const result = await createEscalationTicket(a, c, d);
+    return { result, effects: result.ok ? { ticket: result.data } : {} };
+  },
+};
+
+async function runHandler<K extends ToolName>(name: K, args: ToolInput<K>, ctx: ToolContext, deps: ToolDeps): Promise<ToolOutcome> {
+  const out = await HANDLERS[name](args, ctx, deps);
+  // TypeScript can't correlate a generic K with the union member; the handler map above guarantees it.
+  return { name, ...out } as ToolOutcome;
 }
 
 export function isToolName(name: string): name is ToolName {
-  return name in Inputs;
+  return (TOOL_NAMES as readonly string[]).includes(name);
 }
 
 /** Validates, runs, and never throws. */
@@ -138,30 +149,14 @@ export async function executeTool(name: string, rawArgs: string, ctx: ToolContex
       return { name, ...(await verifyIdentity(loose.data, ctx, deps)) };
     }
   }
-  const parsed = Inputs[name].safeParse(args);
+  const parsed = Inputs[name].safeParse(args) as z.ZodSafeParseResult<ToolInput<typeof name>>;
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
     return { name, result: { ok: false, error: { code: "INVALID_INPUT", message: issues, retryable: true } }, effects: {} };
   }
 
   try {
-    switch (name) {
-      case "verify_identity": {
-        const out = await verifyIdentity(parsed.data as z.infer<(typeof Inputs)["verify_identity"]>, ctx, deps);
-        return { name, ...out };
-      }
-      case "get_policy":
-        return { name, result: await getPolicy(parsed.data as z.infer<(typeof Inputs)["get_policy"]>, ctx, deps), effects: {} };
-      case "issue_refund": {
-        const result = await issueRefund(parsed.data as z.infer<(typeof Inputs)["issue_refund"]>, ctx, deps);
-        return { name, result, effects: !result.ok && result.error.ticket ? { ticket: result.error.ticket } : {} };
-      }
-      case "create_escalation_ticket": {
-        const result = await createEscalationTicket(parsed.data as z.infer<(typeof Inputs)["create_escalation_ticket"]>, ctx, deps);
-        const ticket: Ticket | undefined = result.ok ? result.data : undefined;
-        return { name, result, effects: ticket ? { ticket } : {} };
-      }
-    }
+    return await runHandler(name, parsed.data, ctx, deps);
   } catch (err) {
     log.error("tool failed", { tool: name, sessionId: ctx.sessionId, turnId: ctx.turnId }, err);
     if (name === "get_policy") {

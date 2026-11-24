@@ -2,17 +2,16 @@
  * The session event log: one append-only, numbered sequence per session, shared by chat
  * and voice. Agent context and verified-identity state are rebuilt from it every turn.
  */
-import type { RefundReceipt, ToolError, Ticket, ToolResult, VerifiedCustomer } from "@/lib/tools/types";
-import type { VerifyEffects } from "@/lib/tools/tools";
-import type { Channel } from "@/lib/types";
+import type { RefundReceipt, Ticket, ToolError, ToolOutcome, VerifiedCustomer } from "@/lib/contracts";
+import type { Channel, ErrorCode } from "@/lib/types";
 
 export type SessionEvent =
   | { type: "user_message"; text: string }
   | { type: "assistant_message"; text: string; corrections?: string[]; interrupted?: boolean }
   | { type: "tool_call"; toolCallId: string; name: string; arguments: string; content?: string }
-  | { type: "tool_result"; toolCallId: string; name: string; result: ToolResult<unknown>; effects: VerifyEffects }
+  | ({ type: "tool_result"; toolCallId: string } & ToolOutcome)
   | { type: "escalation"; kind: "ticket" | "suggested"; reason: string; ticket?: Ticket }
-  | { type: "error"; code: string; message: string };
+  | { type: "error"; code: ErrorCode; message: string };
 
 export interface StoredEvent {
   seq: number;
@@ -50,8 +49,8 @@ export type ContextMessage =
   | { role: "tool"; tool_call_id: string; content: string };
 
 /** Compact tool result for the model: data or the typed error, nothing else. */
-function toolContent(result: ToolResult<unknown>): string {
-  return JSON.stringify(result.ok ? { ok: true, data: result.data } : { ok: false, error: result.error as ToolError });
+function toolContent(o: ToolOutcome): string {
+  return JSON.stringify(o.result.ok ? { ok: true, data: o.result.data } : { ok: false, error: o.result.error });
 }
 
 /**
@@ -83,7 +82,7 @@ export function buildContext(events: StoredEvent[], maxEvents = 60): ContextMess
           content: event.content || null,
           tool_calls: [{ id: event.toolCallId, type: "function", function: { name: event.name, arguments: event.arguments } }],
         });
-        out.push({ role: "tool", tool_call_id: event.toolCallId, content: toolContent(result.result) });
+        out.push({ role: "tool", tool_call_id: event.toolCallId, content: toolContent(result) });
         break;
       }
       default:
@@ -119,12 +118,12 @@ export function actionsForTurn(events: StoredEvent[], turnId?: string): {
   refundErrors: ToolError[];
   tickets: Ticket[];
 } {
-  const out = { refunds: [] as RefundReceipt[], refundErrors: [] as ToolError[], tickets: [] as Ticket[] };
+  const out: { refunds: RefundReceipt[]; refundErrors: ToolError[]; tickets: Ticket[] } = { refunds: [], refundErrors: [], tickets: [] };
   for (const e of events) {
     if ((turnId !== undefined && e.turnId !== turnId) || e.event.type !== "tool_result") continue;
     const ev = e.event;
     if (ev.name === "issue_refund") {
-      if (ev.result.ok) out.refunds.push(ev.result.data as RefundReceipt);
+      if (ev.result.ok) out.refunds.push(ev.result.data);
       else if (turnId !== undefined) out.refundErrors.push(ev.result.error);
     }
     if (ev.effects.ticket) out.tickets.push(ev.effects.ticket);

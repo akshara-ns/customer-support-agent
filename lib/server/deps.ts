@@ -10,3 +10,6 @@ export function productionToolDeps(now = new Date()): ToolDeps {
 }
 
 export const productionEvents = pgEventStore;
+
+/** Demo accounts for the public panel (server-rendered on the home page). */
+export { demoUsers } from "@/lib/tools/customers";

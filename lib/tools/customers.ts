@@ -48,15 +48,8 @@ export function customerDirectory(now: Date): CustomerDirectory {
   };
 }
 
-/** Public demo panel data (fake accounts; PINs are shown on purpose so reviewers can try it). */
-export interface DemoUser {
-  name: string;
-  email: string;
-  pin: string;
-  tier: Tier;
-  contractStatus: ContractStatus;
-  tryThis: string;
-}
+export type { DemoUser } from "@/lib/contracts";
+import type { DemoUser } from "@/lib/contracts";
 
 const TRY_THIS: Record<string, string> = {
   cus_free_maya: "Refund the $12 Storage Pack (inv_1001 or inv_1002) or the $9 template bundle",

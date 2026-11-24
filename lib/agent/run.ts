@@ -3,7 +3,7 @@
  * code runs the tool (preconditions + policy) → repeat, at most MAX_TOOL_STEPS tools → reply
  * streamed through the claim gate. Every step is logged, traced and emitted as an event.
  */
-import { ClaimGate, type TurnActions } from "@/lib/agent/claims";
+import { ClaimGate, type TurnActions } from "@/lib/guardrails/claims";
 import { AgentMachine, type AgentState } from "@/lib/agent/machine";
 import { ModelError, type AgentModel } from "@/lib/agent/model";
 import { DEFAULT_RETRY, withRetry } from "@/lib/agent/retry";
@@ -12,10 +12,10 @@ import { SYSTEM_PROMPT } from "@/lib/agent/prompt";
 import { Trace } from "@/lib/observability/trace";
 import { actionsForTurn, buildContext, deriveState, type EventStore } from "@/lib/session/events";
 import { redactText } from "@/lib/observability/redact";
-import { runToolStep } from "@/lib/agent/tool-step";
+import { runToolStep } from "@/lib/tools/step";
 import { TOOL_DEFINITIONS } from "@/lib/tools/registry";
 import type { ToolDeps } from "@/lib/tools/stores";
-import type { RefundReceipt, ToolContext } from "@/lib/tools/types";
+import type { ToolContext } from "@/lib/tools/types";
 import type { AgentEvent, Channel } from "@/lib/types";
 
 export const MAX_TOOL_STEPS = 6;
@@ -172,7 +172,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
         if (outcome.effects.verified) ctx.customer = outcome.effects.verified;
         if (outcome.effects.failedVerification) ctx.failedVerifications++;
         if (outcome.name === "issue_refund") {
-          if (outcome.result.ok) actions.refunds.push(outcome.result.data as RefundReceipt);
+          if (outcome.result.ok) actions.refunds.push(outcome.result.data);
           else actions.refundErrors.push(outcome.result.error);
         }
         if (outcome.effects.ticket) {

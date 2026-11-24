@@ -5,7 +5,7 @@ import { errorResponse, log, newRequestId } from "@/lib/log";
 import { serverEnv } from "@/lib/env";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { createVoiceSession, openAISecretMinter } from "@/lib/voice/session";
-import { productionEvents, productionToolDeps } from "@/lib/voice/deps";
+import { productionEvents, productionToolDeps } from "@/lib/server/deps";
 
 const Body = z.object({ sessionId: z.uuid() });
 

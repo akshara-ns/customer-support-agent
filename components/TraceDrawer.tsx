@@ -1,63 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { ClientFault, SpanNode, TraceReportResponse, TurnReport } from "@/lib/contracts";
 
-interface SpanNode {
-  id: string;
-  kind: string;
-  name: string;
-  status: "ok" | "error";
-  startMs: number;
-  durationMs: number;
-  tokensIn: number | null;
-  tokensOut: number | null;
-  tokensCached: number | null;
-  costUsd: number | null;
-  input: unknown;
-  output: unknown;
-  error: string | null;
-  children: SpanNode[];
-}
+type Report = TraceReportResponse;
+type Turn = TurnReport;
 
-interface Turn {
-  turnId: string;
-  channel: "chat" | "voice";
-  startedAt: string;
-  durationMs: number;
-  ttftMs: number | null;
-  state: string | null;
-  tokens: { in: number; out: number; cached: number };
-  costUsd: number;
-  tools: { name: string; durationMs: number; status: string; error?: string }[];
-  guardrails: { name: string; detail: unknown }[];
-  corrections: unknown[];
-  retries: unknown[];
-  spans: SpanNode[];
-}
-
-interface Report {
-  sessionId: string;
-  turns: Turn[];
-  summary: {
-    turns: number;
-    chatTurnMs: { p50: number | null; p95: number | null };
-    ttftMs: { p50: number | null; p95: number | null };
-    voiceResponseMs: { p50: number | null; p95: number | null };
-    tokens: { in: number; out: number; cached: number };
-    costUsd: { chat: number; voice: number; total: number };
-  };
-  systemPrompt: string;
-  pricing: { checked: string; source: string; note: string };
-}
-
-export const FAULT_OPTIONS = [
+export const FAULT_OPTIONS: { value: ClientFault | ""; label: string }[] = [
   { value: "", label: "None" },
   { value: "llm_timeout", label: "LLM timeout (all retries time out)" },
   { value: "llm_rate_limit", label: "LLM 429 rate limit (2 hits, then recovers)" },
   { value: "tool_failure", label: "Refund tool fails after recording the request" },
   { value: "retrieval_down", label: "Knowledge base / embeddings unavailable" },
   { value: "stream_drop", label: "Chat stream drops mid-turn (client resumes)" },
-] as const;
+];
 
 const ms = (v: number | null | undefined) => (v === null || v === undefined ? "–" : v >= 1000 ? `${(v / 1000).toFixed(2)}s` : `${v}ms`);
 const usd = (v: number) => `$${v.toFixed(v < 0.01 ? 5 : 4)}`;
@@ -182,8 +138,8 @@ export function TraceDrawer({
 }: {
   sessionId: string | null;
   refreshKey: number;
-  fault: string;
-  onFault: (f: string) => void;
+  fault: ClientFault | "";
+  onFault: (f: ClientFault | "") => void;
   onClose: () => void;
   /** Poll while voice is live (voice turns don't end with a chat `done`). */
   live: boolean;
@@ -230,7 +186,7 @@ export function TraceDrawer({
       <section className="drawer-section">
         <label className="small">
           <strong>Failure simulation</strong> (applies to your next chat turn or voice tool call, once)
-          <select value={fault} onChange={(e) => onFault(e.target.value)}>
+          <select value={fault} onChange={(e) => onFault(e.target.value as ClientFault | "")}>
             {FAULT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}

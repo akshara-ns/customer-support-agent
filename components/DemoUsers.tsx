@@ -1,4 +1,4 @@
-import type { DemoUser } from "@/lib/tools/customers";
+import type { DemoUser } from "@/lib/contracts";
 
 /** Fake accounts reviewers can use; PINs are shown on purpose. */
 export function DemoUsers({ users }: { users: DemoUser[] }) {

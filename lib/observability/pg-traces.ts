@@ -2,7 +2,8 @@ import "server-only";
 import { db } from "@/lib/db/client";
 import { redact } from "@/lib/observability/redact";
 import type { Trace } from "@/lib/observability/trace";
-import type { Channel, SpanKind } from "@/lib/types";
+import type { TraceRow } from "@/lib/observability/report";
+import type { Channel } from "@/lib/types";
 
 /** Writes every span of a turn (redacted) to `traces` in one transaction. */
 export async function persistTrace(sessionId: string, trace: Trace, channel: Channel): Promise<void> {
@@ -21,24 +22,7 @@ export async function persistTrace(sessionId: string, trace: Trace, channel: Cha
   );
 }
 
-export interface TraceRow {
-  id: string;
-  turn_id: string;
-  parent_id: string | null;
-  kind: SpanKind;
-  name: string;
-  status: "ok" | "error";
-  started_at: string | Date;
-  duration_ms: number;
-  input: unknown;
-  output: unknown;
-  tokens_in: number | null;
-  tokens_out: number | null;
-  tokens_cached: number | null;
-  cost_usd: string | number | null;
-  error: string | null;
-  channel: Channel;
-}
+export type { TraceRow } from "@/lib/observability/report";
 
 export async function loadTraceRows(sessionId: string): Promise<TraceRow[]> {
   return (await db()`

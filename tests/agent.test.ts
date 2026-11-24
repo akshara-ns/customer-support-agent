@@ -3,7 +3,7 @@
  * policy refusals, claim gate, event log and emitted SSE events.
  */
 import { describe, expect, it } from "vitest";
-import { checkSentence, ClaimGate } from "@/lib/agent/claims";
+import { checkSentence, ClaimGate } from "@/lib/guardrails/claims";
 import { AgentMachine } from "@/lib/agent/machine";
 import { ModelError, type AgentModel, type ModelRequest, type ModelTurn } from "@/lib/agent/model";
 import { MAX_TOOL_STEPS, runTurn } from "@/lib/agent/run";
@@ -59,6 +59,8 @@ function setup(steps: Step[]) {
 }
 
 const VERIFY = { name: "verify_identity", args: { email: "omar@example.com", code: "715204" } };
+
+const POLICY_OK = { status: "answered" as const, answer: "x", citations: [], confidence: 0.5, tier_scope: "general" as const };
 
 describe("agent loop scenarios (scripted model)", () => {
   it("happy path: verify → policy → refund, with live step events and a true reply", async () => {
@@ -225,7 +227,7 @@ describe("state machine and context", () => {
     for (let i = 0; i < 30; i++) {
       await store.append("s", "t", "chat", { type: "user_message", text: `q${i}` });
       await store.append("s", "t", "chat", { type: "tool_call", toolCallId: `c${i}`, name: "get_policy", arguments: "{}" });
-      await store.append("s", "t", "chat", { type: "tool_result", toolCallId: `c${i}`, name: "get_policy", result: { ok: true, data: {} }, effects: {} });
+      await store.append("s", "t", "chat", { type: "tool_result", toolCallId: `c${i}`, name: "get_policy", result: { ok: true, data: POLICY_OK }, effects: {} });
     }
     const ctx = buildContext(await store.list("s"), 10);
     expect(ctx[0].role).toBe("user");

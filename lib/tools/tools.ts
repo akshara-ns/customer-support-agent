@@ -12,52 +12,37 @@ import {
   responseTarget,
   ticketPriority,
 } from "@/lib/tools/policy";
-import type { PolicyAnswer, ToolDeps } from "@/lib/tools/stores";
-import type {
-  CustomerRecord,
-  RefundReceipt,
-  Ticket,
-  TicketReason,
-  ToolContext,
-  ToolError,
-  ToolResult,
-  VerifiedCustomer,
-} from "@/lib/tools/types";
-import type { ContractStatus, Tier } from "@/lib/types";
+import type { PolicyOutput, ToolEffects, VerifyOutput } from "@/lib/contracts";
+import type { ToolDeps } from "@/lib/tools/stores";
+import type { CustomerRecord, RefundReceipt, Ticket, TicketReason, ToolContext, ToolError, ToolResult } from "@/lib/tools/types";
 
 const hash = (...parts: (string | number)[]) => createHash("sha256").update(parts.join("|")).digest("hex").slice(0, 40);
 const fail = (error: ToolError): { ok: false; error: ToolError } => ({ ok: false, error });
 
+/** Ledger results are stored JSON: check the shape before trusting it (no blind casts). */
+function asReceipt(v: unknown): RefundReceipt {
+  const r = v as Partial<RefundReceipt> | null;
+  if (!r || typeof r.refundId !== "string" || typeof r.amountUsd !== "number" || typeof r.invoiceId !== "string") {
+    throw new Error("ledger entry has no valid refund receipt");
+  }
+  return { refundId: r.refundId, invoiceId: r.invoiceId, amountUsd: r.amountUsd, status: "issued", arrivesIn: r.arrivesIn ?? "5-10 business days", replayed: true };
+}
+function asToolError(v: unknown): ToolError {
+  const e = v as Partial<ToolError> | null;
+  if (!e || typeof e.code !== "string" || typeof e.message !== "string") throw new Error("ledger entry has no valid error");
+  return e as ToolError;
+}
+
 // ---------- verify_identity ----------
 
-export interface VerifyOutput {
-  customer_id: string;
-  tier: Tier;
-  contract_status: ContractStatus;
-  contract_end: string | null;
-  /** True when this session had already verified this account (no new PIN check). */
-  already_verified: boolean;
-  invoices: {
-    invoice_id: string;
-    date: string;
-    amount_usd: number;
-    description: string;
-    refunded_usd: number;
-    refundable_until: string;
-  }[];
-}
-
-export interface VerifyEffects {
-  verified?: VerifiedCustomer;
-  failedVerification?: boolean;
-  ticket?: Ticket;
-}
+/** @deprecated use ToolEffects from lib/contracts */
+export type VerifyEffects = ToolEffects;
 
 export async function verifyIdentity(
   input: { email: string; code: string },
   ctx: ToolContext,
   deps: ToolDeps,
-): Promise<{ result: ToolResult<VerifyOutput>; effects: VerifyEffects }> {
+): Promise<{ result: ToolResult<VerifyOutput>; effects: ToolEffects }> {
   if (ctx.failedVerifications >= MAX_FAILED_VERIFICATIONS) {
     return {
       result: fail({ code: "IDENTITY_LOCKED", message: "Too many failed verification attempts in this conversation.", retryable: false }),
@@ -145,7 +130,7 @@ export async function getPolicy(
   input: { question: string },
   ctx: ToolContext,
   deps: ToolDeps,
-): Promise<ToolResult<PolicyAnswer & { tier_scope: Tier | "general" }>> {
+): Promise<ToolResult<PolicyOutput>> {
   const tier = ctx.customer?.tier ?? null;
   const answer = await deps.policy.search(input.question, tier, ctx.trace);
   return { ok: true, data: { ...answer, tier_scope: tier ?? "general" } };
@@ -191,10 +176,10 @@ export async function issueRefund(
     );
   }
   if (!created && entry.status === "succeeded") {
-    return { ok: true, data: { ...(entry.result as RefundReceipt), replayed: true } };
+    return { ok: true, data: { ...asReceipt(entry.result), replayed: true } };
   }
   if (!created && entry.status === "rejected") {
-    return { ok: false, error: entry.result as ToolError };
+    return { ok: false, error: asToolError(entry.result) };
   }
 
   const alreadyRefundedUsd = (invoice?.refundedUsd ?? 0) + (await deps.ledger.refundedUsd(customer.customerId, input.invoice_id));

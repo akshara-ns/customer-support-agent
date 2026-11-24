@@ -1,6 +1,6 @@
 import "server-only";
 import { MODELS } from "@/lib/config";
-import { DATA_NOT_INSTRUCTIONS, renderDocuments } from "@/lib/guardrails/prompt";
+import { DATA_NOT_INSTRUCTIONS, renderDocuments } from "@/lib/rag/prompt";
 import { openai } from "@/lib/openai";
 import type { Trace } from "@/lib/observability/trace";
 import type { RetrievedChunk, Tier } from "@/lib/types";

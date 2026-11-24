@@ -5,7 +5,8 @@
  */
 import type { Trace } from "@/lib/observability/trace";
 import type { EventStore } from "@/lib/session/events";
-import { TOOL_LABELS, executeTool, isToolName, redactArgs, type ToolOutcome } from "@/lib/tools/registry";
+import { toolLabel, type ToolOutcome } from "@/lib/contracts";
+import { executeTool, redactArgs } from "@/lib/tools/registry";
 import type { ToolDeps } from "@/lib/tools/stores";
 import type { Ticket, ToolContext } from "@/lib/tools/types";
 import type { AgentEvent, Channel } from "@/lib/types";
@@ -38,16 +39,15 @@ export function summarizeOutcome(o: ToolOutcome): string {
     if (o.result.error.code === "SERVICE_UNAVAILABLE") return "The knowledge base is temporarily unavailable";
     return o.result.error.message;
   }
-  const d = o.result.data as Record<string, unknown>;
   switch (o.name) {
     case "verify_identity":
-      return `Verified: ${d.tier} tier, contract ${d.contract_status}`;
+      return `Verified: ${o.result.data.tier} tier, contract ${o.result.data.contract_status}`;
     case "get_policy":
-      return d.status === "answered" ? `Found policy answer (confidence ${d.confidence})` : "Not covered by policy: escalation suggested";
+      return o.result.data.status === "answered" ? `Found policy answer (confidence ${o.result.data.confidence})` : "Not covered by policy: escalation suggested";
     case "issue_refund":
-      return `Refund of $${d.amountUsd} issued on ${d.invoiceId}${d.replayed ? " (already processed)" : ""}`;
+      return `Refund of $${o.result.data.amountUsd} issued on ${o.result.data.invoiceId}${o.result.data.replayed ? " (already processed)" : ""}`;
     case "create_escalation_ticket":
-      return `Ticket ${d.ticketNumber} created (${d.priority})`;
+      return `Ticket ${o.result.data.ticketNumber} created (${o.result.data.priority})`;
     default:
       return "Done";
   }
@@ -62,7 +62,7 @@ export function toolOutputForModel(o: ToolOutcome): string {
 
 export async function runToolStep(a: ToolStepArgs): Promise<{ outcome: ToolOutcome; durationMs: number }> {
   const log = (event: Parameters<EventStore["append"]>[3]) => a.events.append(a.sessionId, a.turnId, a.channel, event);
-  const label = isToolName(a.call.name) ? TOOL_LABELS[a.call.name] : a.call.name;
+  const label = toolLabel(a.call.name);
   a.emit({ type: "step_started", stepId: a.stepId, tool: a.call.name, label });
   await log({
     type: "tool_call",
@@ -91,15 +91,15 @@ export async function runToolStep(a: ToolStepArgs): Promise<{ outcome: ToolOutco
   const durationMs = Math.round(performance.now() - t0);
 
   a.emit({ type: "step_completed", stepId: a.stepId, tool: a.call.name, label, ok: outcome.result.ok, durationMs, summary: summarizeOutcome(outcome) });
-  await log({ type: "tool_result", toolCallId: a.call.id, name: outcome.name, result: outcome.result, effects: outcome.effects });
+  await log({ type: "tool_result", toolCallId: a.call.id, ...outcome });
 
   if (outcome.effects.ticket) {
     const ticket = outcome.effects.ticket;
     a.emit({ type: "escalation", kind: "ticket", reason: ticket.reason, ticket: ticketSummary(ticket) });
     await log({ type: "escalation", kind: "ticket", reason: ticket.reason, ticket });
   }
-  if (outcome.name === "get_policy" && outcome.result.ok && (outcome.result.data as { status: string }).status === "needs_escalation") {
-    const reason = String((outcome.result.data as { reason: string }).reason);
+  if (outcome.name === "get_policy" && outcome.result.ok && outcome.result.data.status === "needs_escalation") {
+    const reason = outcome.result.data.reason;
     a.emit({ type: "escalation", kind: "suggested", reason });
     await log({ type: "escalation", kind: "suggested", reason });
   }

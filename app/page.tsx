@@ -1,7 +1,7 @@
 import { Chat } from "@/components/Chat";
 import { DemoUsers } from "@/components/DemoUsers";
 import { HealthPanel } from "@/components/HealthStatus";
-import { demoUsers } from "@/lib/tools/customers";
+import { demoUsers } from "@/lib/server/deps";
 
 export default function Home() {
   return (

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { checkCitations, extractCitations } from "@/lib/guardrails/citations";
 import { assessRetrievalConfidence } from "@/lib/guardrails/confidence";
-import { scanForInjection } from "@/lib/guardrails/injection";
-import { renderDocuments } from "@/lib/guardrails/prompt";
+import { scanForInjection } from "@/lib/rag/injection";
+import { renderDocuments } from "@/lib/rag/prompt";
 import type { RetrievedChunk } from "@/lib/types";
 
 const chunk = (chunkKey: string, score: number): RetrievedChunk => ({

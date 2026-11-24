@@ -6,7 +6,7 @@ import { errorResponse, log, newRequestId } from "@/lib/log";
 import { persistTrace } from "@/lib/observability/pg-traces";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { runVoiceTool } from "@/lib/voice/bridge";
-import { productionEvents, productionToolDeps } from "@/lib/voice/deps";
+import { productionEvents, productionToolDeps } from "@/lib/server/deps";
 
 export const maxDuration = 30;
 

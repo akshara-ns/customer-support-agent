@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chunkDocument, embeddingText, estimateTokens, parsePolicyDoc } from "@/lib/rag/chunker";
 import { loadCorpus } from "@/lib/rag/corpus";
-import { scanForInjection } from "@/lib/guardrails/injection";
+import { scanForInjection } from "@/lib/rag/injection";
 import { CHUNKING } from "@/lib/config";
 
 const OPTS = { maxTokens: 350, overlapTokens: 40 };

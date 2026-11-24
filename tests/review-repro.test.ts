@@ -69,7 +69,7 @@ describe("G5: lockout is per account, not just per session", () => {
 
 describe("G3: claim gate knows the session, and catches paraphrases", () => {
   it("does not rewrite a true reference to an earlier refund; still corrects false ones and paraphrases", async () => {
-    const { checkSentence } = await import("@/lib/agent/claims");
+    const { checkSentence } = await import("@/lib/guardrails/claims");
     const earlier = {
       refunds: [{ refundId: "r", invoiceId: "inv_2005", amountUsd: 58, status: "issued" as const, arrivesIn: "5-10 business days", replayed: false }],
       refundErrors: [],

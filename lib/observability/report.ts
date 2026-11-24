@@ -3,52 +3,30 @@
  * (TTFT, end to end, per tool), tokens, estimated cost, guardrail decisions, claim-check
  * corrections and retries; per session p50/p95 and totals. Pure, so it is unit-tested.
  */
-import type { TraceRow } from "@/lib/observability/pg-traces";
+import type { SessionReport, SpanNode, TurnReport } from "@/lib/contracts";
 import type { Channel, SpanKind } from "@/lib/types";
 
-export interface SpanNode {
+export type { SessionReport, SpanNode, TurnReport } from "@/lib/contracts";
+
+/** A row of the `traces` table as the report reads it. */
+export interface TraceRow {
   id: string;
+  turn_id: string;
+  parent_id: string | null;
   kind: SpanKind;
   name: string;
   status: "ok" | "error";
-  startMs: number;
-  durationMs: number;
-  tokensIn: number | null;
-  tokensOut: number | null;
-  tokensCached: number | null;
-  costUsd: number | null;
+  /** The Neon driver returns timestamptz as a Date. */
+  started_at: string | Date;
+  duration_ms: number;
   input: unknown;
   output: unknown;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  tokens_cached: number | null;
+  cost_usd: string | number | null;
   error: string | null;
-  children: SpanNode[];
-}
-
-export interface TurnReport {
-  turnId: string;
   channel: Channel;
-  startedAt: string;
-  durationMs: number;
-  ttftMs: number | null;
-  state: string | null;
-  tokens: { in: number; out: number; cached: number };
-  costUsd: number;
-  tools: { name: string; durationMs: number; status: string; error?: string }[];
-  guardrails: { name: string; detail: unknown }[];
-  corrections: unknown[];
-  retries: unknown[];
-  spans: SpanNode[];
-}
-
-export interface SessionReport {
-  turns: TurnReport[];
-  summary: {
-    turns: number;
-    chatTurnMs: { p50: number | null; p95: number | null };
-    ttftMs: { p50: number | null; p95: number | null };
-    voiceResponseMs: { p50: number | null; p95: number | null };
-    tokens: { in: number; out: number; cached: number };
-    costUsd: { chat: number; voice: number; total: number };
-  };
 }
 
 export function percentile(values: number[], p: number): number | null {

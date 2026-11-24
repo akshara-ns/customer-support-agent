@@ -6,6 +6,7 @@ import { VoiceBar } from "@/components/voice/VoiceBar";
 import { VoiceDebugPanel } from "@/components/voice/VoiceDebugPanel";
 import { useVoice } from "@/components/voice/useVoice";
 import { TraceDrawer } from "@/components/TraceDrawer";
+import type { ClientFault } from "@/lib/contracts";
 
 /** A distinct, friendly state per failure type, with the actions that make sense for it. */
 function errorCopy(code: string, tool?: string): { text: string; actions: ("retry" | "refund_again" | "ticket")[] } {
@@ -68,9 +69,9 @@ function EscalationCard({ m, onCreate }: { m: ChatMessage; onCreate: () => void 
 
 export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
   const { sessionId, messages, busy, send, retry, reset, upsert, turnVersion } = useChat();
-  const [fault, setFault] = useState("");
-  const faultRef = useRef("");
-  const chooseFault = (f: string) => {
+  const [fault, setFault] = useState<ClientFault | "">("");
+  const faultRef = useRef<ClientFault | "">("");
+  const chooseFault = (f: ClientFault | "") => {
     faultRef.current = f;
     setFault(f);
   };

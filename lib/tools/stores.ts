@@ -53,9 +53,8 @@ export interface TicketStore {
   create(t: NewTicket): Promise<{ ticketNumber: string; replayed: boolean }>;
 }
 
-export type PolicyAnswer =
-  | { status: "answered"; answer: string; citations: string[]; confidence: number }
-  | { status: "needs_escalation"; reason: string; confidence: number };
+export type { PolicyAnswer } from "@/lib/contracts";
+import type { PolicyAnswer } from "@/lib/contracts";
 
 export interface PolicySearch {
   /** tier null = unverified caller: only sections that apply to every tier are searched. */

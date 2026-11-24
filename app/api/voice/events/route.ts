@@ -4,7 +4,7 @@ import { authorizeSession, ownerFromRequest, withOwnerCookie } from "@/lib/sessi
 import { errorResponse, log, newRequestId } from "@/lib/log";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { recordVoiceEvent } from "@/lib/voice/bridge";
-import { productionEvents } from "@/lib/voice/deps";
+import { productionEvents } from "@/lib/server/deps";
 import { pgTraceWriter } from "@/lib/voice/pg";
 
 const Usage = z

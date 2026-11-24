@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { CHUNKING, MODELS } from "@/lib/config";
 import { db } from "@/lib/db/client";
-import { DETECTOR_VERSION, scanForInjection } from "@/lib/guardrails/injection";
+import { DETECTOR_VERSION, scanForInjection } from "@/lib/rag/injection";
 import { embeddingText } from "@/lib/rag/chunker";
 import { loadCorpus } from "@/lib/rag/corpus";
 import { embed, toVectorLiteral } from "@/lib/rag/embed";

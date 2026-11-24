@@ -4,6 +4,7 @@
  * The standard API key is used only here, server-side.
  */
 import { MODELS, VOICE } from "@/lib/config";
+import type { VoiceHistoryItem, VoiceSessionResponse } from "@/lib/contracts";
 import { SYSTEM_PROMPT } from "@/lib/agent/prompt";
 import type { EventStore, StoredEvent } from "@/lib/session/events";
 import { deriveState } from "@/lib/session/events";
@@ -26,11 +27,7 @@ export const REALTIME_TOOLS = TOOL_DEFINITIONS.map((t) => ({
   parameters: t.function.parameters,
 }));
 
-export interface HistoryItem {
-  role: "user" | "assistant";
-  text: string;
-  channel: "chat" | "voice";
-}
+export type HistoryItem = VoiceHistoryItem;
 
 /** Last N visible messages from the session log (chat and voice). */
 export function recentHistory(events: StoredEvent[], n: number = VOICE.historyMessages): HistoryItem[] {
@@ -118,14 +115,7 @@ export function openAISecretMinter(apiKey: string, fetchImpl: typeof fetch = fet
   };
 }
 
-export interface VoiceSessionResponse {
-  clientSecret: string;
-  expiresAt: number;
-  model: string;
-  verified: boolean;
-  history: HistoryItem[];
-  maxSeconds: number;
-}
+export type { VoiceSessionResponse } from "@/lib/contracts";
 
 export async function createVoiceSession(
   sessionId: string,

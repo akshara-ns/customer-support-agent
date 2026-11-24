@@ -5,8 +5,8 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 
-export const FAULTS = ["llm_timeout", "llm_rate_limit", "tool_failure", "retrieval_down"] as const;
-export type Fault = (typeof FAULTS)[number];
+import type { Fault } from "@/lib/contracts";
+export { FAULTS, type Fault } from "@/lib/contracts";
 
 const store = new AsyncLocalStorage<{ fault: Fault | null }>();
 
