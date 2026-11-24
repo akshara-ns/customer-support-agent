@@ -15,6 +15,8 @@ interface ActionRow {
   result: unknown;
 }
 
+const EXPIRED = { code: "REQUEST_EXPIRED", message: "This refund request didn't complete in time and expired. Nothing was refunded.", retryable: true };
+
 const toEntry = (r: ActionRow): LedgerEntry => ({
   idempotencyKey: r.idempotency_key,
   sessionId: r.session_id,
@@ -52,6 +54,19 @@ export const pgLedger: ActionLedger = {
       WHERE idempotency_key = ${key} AND status = 'pending'
       RETURNING id`;
     if (rows.length !== 1) throw new Error(`ledger entry ${key} was not pending`);
+  },
+  async expireStale(customerId, invoiceId, exceptKey, maxAgeSec) {
+    const rows = await db()`
+      UPDATE actions
+      SET status = 'rejected',
+          idempotency_key = idempotency_key || ':expired:' || id,
+          completed_at = now(),
+          result = ${JSON.stringify(EXPIRED)}::jsonb
+      WHERE customer_id = ${customerId} AND invoice_id = ${invoiceId} AND status = 'pending'
+        AND idempotency_key <> ${exceptKey}
+        AND created_at < now() - make_interval(secs => ${maxAgeSec})
+      RETURNING id`;
+    return rows.length;
   },
   async refundedUsd(customerId, invoiceId) {
     const rows = (await db()`

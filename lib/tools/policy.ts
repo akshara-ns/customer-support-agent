@@ -14,6 +14,9 @@ export const REFUND_RULES: Record<Tier, { maxUsd: number; windowDays: number }> 
 export const MAX_FAILED_VERIFICATIONS = 3;
 /** Per account (email), across sessions and channels, in a rolling window. */
 export const MAX_ACCOUNT_FAILURES = 5;
+/** A pending refund older than this is treated as abandoned (e.g. a crash after the write-ahead entry). */
+export const PENDING_REFUND_EXPIRY_SEC = 120;
+
 export const ACCOUNT_LOCK_WINDOW_SEC = 900;
 
 const DAY_MS = 86_400_000;

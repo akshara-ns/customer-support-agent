@@ -35,6 +35,14 @@ export interface ActionLedger {
   complete(idempotencyKey: string, status: Exclude<LedgerStatus, "pending">, result: unknown): Promise<void>;
   /** Sum of succeeded refunds for one invoice. */
   refundedUsd(customerId: string, invoiceId: string): Promise<number>;
+  /**
+   * Resolves pending refunds on this invoice older than `maxAgeSec`, except `exceptKey` (a request
+   * may always resume its own entry). A refund only exists once the ledger says succeeded (the mock
+   * processor keeps no other state), so an expired pending entry did not complete: it is marked
+   * rejected with REQUEST_EXPIRED and its key is retired (suffixed) so a later retry starts fresh.
+   * Returns how many were expired.
+   */
+  expireStale(customerId: string, invoiceId: string, exceptKey: string, maxAgeSec: number): Promise<number>;
 }
 
 export interface NewTicket {

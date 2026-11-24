@@ -7,6 +7,7 @@ import { activeFault } from "@/lib/faults";
 import {
   MAX_ACCOUNT_FAILURES,
   MAX_FAILED_VERIFICATIONS,
+  PENDING_REFUND_EXPIRY_SEC,
   evaluateRefund,
   refundDeadline,
   responseTarget,
@@ -151,6 +152,8 @@ export async function issueRefund(
   const amountCents = Math.round(input.amount_usd * 100);
   const key = hash("refund", ctx.sessionId, input.invoice_id, amountCents);
 
+  // A request that crashed after its write-ahead entry must not hold the invoice forever.
+  await deps.ledger.expireStale(customer.customerId, input.invoice_id, key, PENDING_REFUND_EXPIRY_SEC);
   // Write-ahead: the request is recorded before anything is decided or acknowledged.
   const { created, entry } = await deps.ledger.begin({
     idempotencyKey: key,

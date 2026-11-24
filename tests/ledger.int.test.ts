@@ -27,6 +27,26 @@ describe.skipIf(!live)("pgLedger (live DB)", () => {
     for (const r of results.filter((x) => !x.created)) expect(r.entry.idempotencyKey).toBe(winner); // losers see the holder
   });
 
+  it("an expired pending entry is resolved by the next request; the holder's own key is never expired", async () => {
+    const invoiceId = `inv_expire_${Date.now()}`;
+    const stuck = await pgLedger.begin({ idempotencyKey: `${invoiceId}:stuck`, sessionId: SESSION, customerId: CUSTOMER, invoiceId, amountUsd: 29 });
+    expect(stuck.created).toBe(true);
+    // Not old yet: nothing expires, and the invoice is still held.
+    expect(await pgLedger.expireStale(CUSTOMER, invoiceId, `${invoiceId}:new`, 120)).toBe(0);
+    await db()`UPDATE actions SET created_at = now() - interval '5 minutes' WHERE idempotency_key = ${`${invoiceId}:stuck`}`;
+    // Its own key is excluded (a request may resume itself).
+    expect(await pgLedger.expireStale(CUSTOMER, invoiceId, `${invoiceId}:stuck`, 120)).toBe(0);
+    expect(await pgLedger.expireStale(CUSTOMER, invoiceId, `${invoiceId}:new`, 120)).toBe(1);
+    const rows = (await db()`SELECT idempotency_key, status, result->>'code' AS code FROM actions WHERE invoice_id = ${invoiceId}`) as {
+      idempotency_key: string;
+      status: string;
+      code: string;
+    }[];
+    expect(rows).toEqual([{ idempotency_key: expect.stringMatching(/:stuck:expired:/), status: "rejected", code: "REQUEST_EXPIRED" }]);
+    const next = await pgLedger.begin({ idempotencyKey: `${invoiceId}:new`, sessionId: SESSION, customerId: CUSTOMER, invoiceId, amountUsd: 29 });
+    expect(next.created).toBe(true);
+  });
+
   it("a rejected request frees the invoice for a later valid one", async () => {
     const invoiceId = `inv_free_${Date.now()}`;
     const first = await pgLedger.begin({ idempotencyKey: `${invoiceId}:big`, sessionId: SESSION, customerId: CUSTOMER, invoiceId, amountUsd: 900 });

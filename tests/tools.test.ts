@@ -143,6 +143,7 @@ describe("issue_refund policy", () => {
     const broken: ActionLedger = {
       begin: ledger.begin.bind(ledger),
       refundedUsd: ledger.refundedUsd.bind(ledger),
+      expireStale: ledger.expireStale.bind(ledger),
       complete: async () => {
         throw new Error("db down");
       },

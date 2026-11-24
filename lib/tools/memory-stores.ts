@@ -5,6 +5,31 @@ export class MemoryLedger implements ActionLedger {
   readonly entries = new Map<string, LedgerEntry>();
   /** Order of writes, so tests can assert "recorded before acknowledged". */
   readonly log: string[] = [];
+  private readonly createdAt = new Map<string, number>();
+  private seq = 0;
+
+  /** `clock` (ms) is injectable so tests can move past the pending expiry. */
+  constructor(private readonly clock: () => number = () => Date.now()) {}
+
+  async expireStale(customerId: string, invoiceId: string, exceptKey: string, maxAgeSec: number) {
+    let n = 0;
+    for (const [key, e] of [...this.entries]) {
+      const age = (this.clock() - (this.createdAt.get(key) ?? this.clock())) / 1000;
+      if (e.customerId !== customerId || e.invoiceId !== invoiceId || e.status !== "pending" || key === exceptKey || age <= maxAgeSec) continue;
+      // Same as pgLedger: mark rejected and retire the key so a later retry starts fresh.
+      const retired = `${key}:expired:${++this.seq}`;
+      this.entries.delete(key);
+      this.entries.set(retired, {
+        ...e,
+        idempotencyKey: retired,
+        status: "rejected",
+        result: { code: "REQUEST_EXPIRED", message: "This refund request didn't complete in time and expired. Nothing was refunded.", retryable: true },
+      });
+      this.log.push(`expire:${key}`);
+      n++;
+    }
+    return n;
+  }
 
   async begin(e: Omit<LedgerEntry, "status" | "result">) {
     const existing = this.entries.get(e.idempotencyKey);
@@ -16,6 +41,7 @@ export class MemoryLedger implements ActionLedger {
     if (active) return { created: false, entry: active };
     const entry: LedgerEntry = { ...e, status: "pending", result: null };
     this.entries.set(e.idempotencyKey, entry);
+    this.createdAt.set(e.idempotencyKey, this.clock());
     this.log.push(`begin:${e.idempotencyKey}`);
     return { created: true, entry };
   }
