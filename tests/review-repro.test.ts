@@ -81,6 +81,9 @@ describe("G3: claim gate knows the session, and catches paraphrases", () => {
     expect(checkSentence("I've credited $500 back to your account.", none).corrected).toBe(true);
     expect(checkSentence("The money is on its way back to your card.", none).corrected).toBe(true);
     expect(checkSentence("Refunds go back to the original payment method.", none).corrected).toBe(false);
+    // Regression found in the live scenario run: policy text must not be "corrected".
+    expect(checkSentence("Annual Pro plans can be refunded on a prorated basis within 30 days, up to the $200 agent limit.", none).corrected).toBe(false);
+    expect(checkSentence("Requests above $200 are sent back to the billing team for review.", none).corrected).toBe(false);
   });
 
   it("runTurn seeds the claim gate with refunds and tickets from earlier turns in the session", async () => {
