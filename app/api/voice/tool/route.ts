@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { RATE_LIMITS } from "@/lib/config";
 import { FAULTS, runWithFault } from "@/lib/faults";
+import { authorizeSession, ownerFromRequest, withOwnerCookie } from "@/lib/session/owner";
 import { errorResponse, log, newRequestId } from "@/lib/log";
 import { persistTrace } from "@/lib/observability/pg-traces";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
@@ -31,6 +32,8 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const limit = await consumeLimits(request, [...RATE_LIMITS.voiceTool]);
     if (!limit.allowed) return rateLimitedResponse(limit);
+    const owner = ownerFromRequest(request);
+    if (!(await authorizeSession(sessionId, owner))) return errorResponse(403, "forbidden", "This conversation belongs to another browser.", requestId);
     const result = await runWithFault(parsed.data.simulate, () =>
       runVoiceTool(parsed.data, {
         events: productionEvents,
@@ -39,7 +42,7 @@ export async function POST(request: Request): Promise<Response> {
       }),
     );
     log.info("voice tool", { requestId, sessionId, tool: parsed.data.name, ok: result.ok, simulate: parsed.data.simulate });
-    return Response.json(result, { headers: { "Cache-Control": "no-store", "x-request-id": requestId } });
+    return withOwnerCookie(Response.json(result, { headers: { "Cache-Control": "no-store", "x-request-id": requestId } }), owner);
   } catch (err) {
     log.error("voice tool failed", { requestId, sessionId, tool: parsed.data.name }, err);
     // Still a valid function output, so the model can tell the caller instead of hanging.

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { RATE_LIMITS } from "@/lib/config";
+import { authorizeSession, ownerFromRequest, withOwnerCookie } from "@/lib/session/owner";
 import { errorResponse, log, newRequestId } from "@/lib/log";
 import { serverEnv } from "@/lib/env";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
@@ -19,6 +20,8 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const limit = await consumeLimits(request, [...RATE_LIMITS.voiceSession]);
     if (!limit.allowed) return rateLimitedResponse(limit);
+    const owner = ownerFromRequest(request);
+    if (!(await authorizeSession(parsed.data.sessionId, owner))) return errorResponse(403, "forbidden", "This conversation belongs to another browser.", requestId);
     const key = serverEnv().OPENAI_API_KEY;
     if (!key) return errorResponse(503, "unavailable", "Voice is not configured.", requestId);
     const session = await createVoiceSession(parsed.data.sessionId, {
@@ -26,7 +29,7 @@ export async function POST(request: Request): Promise<Response> {
       tools: productionToolDeps(),
       mint: openAISecretMinter(key),
     });
-    return Response.json(session, { headers: { "Cache-Control": "no-store" } });
+    return withOwnerCookie(Response.json(session, { headers: { "Cache-Control": "no-store", "x-request-id": requestId } }), owner);
   } catch (err) {
     log.error("voice session failed", { requestId, sessionId: parsed.data.sessionId }, err);
     return errorResponse(503, "unavailable", "Couldn't start a voice session. Please try again.", requestId);

@@ -21,8 +21,11 @@ export interface LimitResult {
 
 /** Client IP as seen by Vercel's proxy, hashed so raw IPs are never stored. */
 export function clientKey(request: Request): string {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+  // Prefer headers the platform sets itself (Vercel overwrites these; verified live that a spoofed
+  // X-Forwarded-For doesn't reset the counter). Fall back to the right-most X-Forwarded-For hop, which
+  // the nearest proxy appended, never the left-most client-supplied one.
+  const xff = request.headers.get("x-forwarded-for")?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
+  const ip = request.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || xff.at(-1) || "unknown";
   return createHash("sha256").update(ip).digest("hex").slice(0, 32);
 }
 

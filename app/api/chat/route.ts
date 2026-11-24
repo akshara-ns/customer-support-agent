@@ -4,6 +4,7 @@ import { RATE_LIMITS } from "@/lib/config";
 import { openAIAgentModel } from "@/lib/agent/openai-model";
 import { runTurn } from "@/lib/agent/run";
 import { FAULTS, runWithFault } from "@/lib/faults";
+import { authorizeSession, ownerFromRequest, withOwnerCookie } from "@/lib/session/owner";
 import { errorResponse, log, newRequestId } from "@/lib/log";
 import { persistTrace } from "@/lib/observability/pg-traces";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
@@ -32,9 +33,11 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse(400, "invalid_request", "Expected { sessionId: uuid, message: string (1-2000 chars) }.", requestId);
   }
   const { sessionId, message, simulate } = parsed.data;
+  const owner = ownerFromRequest(request);
   try {
     const limit = await consumeLimits(request, [...RATE_LIMITS.chat]);
     if (!limit.allowed) return rateLimitedResponse(limit);
+    if (!(await authorizeSession(sessionId, owner))) return errorResponse(403, "forbidden", "This conversation belongs to another browser.", requestId);
   } catch (err) {
     log.error("rate limit check failed", { requestId, sessionId }, err);
     return errorResponse(503, "unavailable", "Service temporarily unavailable.", requestId);
@@ -44,7 +47,6 @@ export async function POST(request: Request): Promise<Response> {
   // Every numbered event also goes to the stream log, so a dropped client can resume from its last seq.
   const streamId = crypto.randomUUID();
   const streamLog = new StreamLog(streamId, sessionId);
-  await pgEventStore.ensureSession(sessionId);
   let resolveTurn: () => void = () => {};
   // Keep the function alive until the turn finishes, even if the client disconnects mid-stream.
   after(() => new Promise<void>((r) => (resolveTurn = r)));
@@ -93,7 +95,7 @@ export async function POST(request: Request): Promise<Response> {
     },
   });
 
-  return new Response(stream, {
+  return withOwnerCookie(new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-store, no-transform",
@@ -102,7 +104,7 @@ export async function POST(request: Request): Promise<Response> {
       "x-request-id": requestId,
       "x-stream-id": streamId,
     },
-  });
+  }), owner);
 }
 
 /** GET /api/chat?sessionId=… → the visible transcript (user/assistant messages, tickets) for reloads. */
@@ -110,7 +112,9 @@ export async function GET(request: Request): Promise<Response> {
   const requestId = newRequestId(request);
   const id = z.uuid().safeParse(new URL(request.url).searchParams.get("sessionId"));
   if (!id.success) return errorResponse(400, "invalid_request", "sessionId must be a UUID.", requestId);
+  const owner = ownerFromRequest(request);
   try {
+    if (!(await authorizeSession(id.data, owner))) return errorResponse(403, "forbidden", "This conversation belongs to another browser.", requestId);
     const events = await pgEventStore.list(id.data);
     type Line = { seq: number; channel: string; role: "user" | "assistant" | "ticket"; text: string; interrupted?: boolean };
     const transcript = events.flatMap(({ seq, channel, event }): Line[] => {
@@ -121,7 +125,7 @@ export async function GET(request: Request): Promise<Response> {
       }
       return [];
     });
-    return Response.json({ sessionId: id.data, transcript }, { headers: { "Cache-Control": "no-store", "x-request-id": requestId } });
+    return withOwnerCookie(Response.json({ sessionId: id.data, transcript }, { headers: { "Cache-Control": "no-store", "x-request-id": requestId } }), owner);
   } catch (err) {
     log.error("transcript failed", { requestId, sessionId: id.data }, err);
     return errorResponse(503, "unavailable", "Transcript temporarily unavailable.", requestId);

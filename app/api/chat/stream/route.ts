@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { errorResponse, log, newRequestId } from "@/lib/log";
 import { readStreamEvents } from "@/lib/session/stream-log";
+import { authorizeSession, ownerFromRequest, sessionOfStream } from "@/lib/session/owner";
 
 export const maxDuration = 60;
 
@@ -17,6 +18,14 @@ export async function GET(request: Request): Promise<Response> {
   if (!parsed.success) return errorResponse(400, "invalid_request", "Expected streamId (uuid) and after (integer).", requestId);
   const { streamId } = parsed.data;
   let last = parsed.data.after;
+  try {
+    const sessionId = await sessionOfStream(streamId);
+    if (!sessionId) return errorResponse(404, "not_found", "Unknown stream.", requestId);
+    if (!(await authorizeSession(sessionId, ownerFromRequest(request)))) return errorResponse(403, "forbidden", "This conversation belongs to another browser.", requestId);
+  } catch (err) {
+    log.error("stream authorize failed", { requestId, streamId }, err);
+    return errorResponse(503, "unavailable", "Stream temporarily unavailable.", requestId);
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
