@@ -97,7 +97,9 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
             Ask about plans, refunds or troubleshooting. To act on an account, give the email and support PIN of a demo user.
           </p>
         )}
-        {messages.map((m) => (
+        {messages
+          .filter((m) => m.channel !== "voice" || m.text || m.steps.length || m.escalation || m.streaming)
+          .map((m) => (
           <div key={m.id} className={`msg msg-${m.role}${m.channel === "voice" ? " msg-voice" : ""}`}>
             {m.channel === "voice" && <span className="voice-tag small muted">voice</span>}
             {m.steps.length > 0 && (

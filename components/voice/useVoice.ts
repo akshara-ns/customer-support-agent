@@ -42,6 +42,7 @@ interface ResponseState {
   interrupted: boolean;
   heardText?: string;
   truncateConfirmed: boolean;
+  logged: boolean;
   calls: Promise<{ callId: string; output: string }>[];
 }
 
@@ -97,6 +98,8 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
     itemTurn: new Map<string, string>(),
     responses: new Map<string, ResponseState>(),
     activeResponseId: null as string | null,
+    /** Response whose audio is playing now. Playback outlasts response.done by seconds. */
+    playingResponseId: null as string | null,
     speaking: false,
     handledCalls: new Set<string>(),
     lastClipAt: null as number | null,
@@ -155,7 +158,7 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
       c.audioEl.srcObject = null;
     }
     void c.ctx?.close().catch(() => {});
-    Object.assign(c, { pc: null, dc: null, ctx: null, micStream: null, clipDest: null, micAnalyser: null, audioEl: null, activeResponseId: null, speaking: false });
+    Object.assign(c, { pc: null, dc: null, ctx: null, micStream: null, clipDest: null, micAnalyser: null, audioEl: null, activeResponseId: null, playingResponseId: null, speaking: false });
     setMicAnalyser(null);
     setAgentAnalyser(null);
   }, []);
@@ -171,10 +174,29 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
     [teardown, note],
   );
 
+  /** Logs what the caller actually heard, once: when playback ends, or after an interruption. */
+  const logAssistant = useCallback(
+    (resp: ResponseState) => {
+      if (resp.logged) return;
+      const spoken = (resp.interrupted ? resp.heardText : resp.text)?.trim();
+      if (!spoken) return;
+      resp.logged = true;
+      void post<{ flags: string[] }>("/api/voice/events", {
+        sessionId,
+        turnId: resp.turnId,
+        event: { kind: "assistant_transcript", text: spoken, interrupted: resp.interrupted },
+      }).then((res) => {
+        if (res?.flags.length) upsert(resp.msgId, voiceMsg(resp.msgId, "assistant"), (m) => ({ ...m, flags: res.flags }));
+      });
+    },
+    [post, sessionId, upsert],
+  );
+
   // ---- interruption ----
   const interrupt = useCallback(() => {
     const c = r.current;
-    const resp = c.activeResponseId ? c.responses.get(c.activeResponseId) : undefined;
+    const id = c.speaking ? (c.playingResponseId ?? c.activeResponseId) : c.activeResponseId;
+    const resp = id ? c.responses.get(id) : undefined;
     if (!resp || resp.interrupted || (!c.speaking && !resp.text)) return;
     const t0 = performance.now();
     if (c.audioEl) c.audioEl.muted = true; // stop what the caller hears immediately
@@ -197,11 +219,13 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
     // The server truncates on barge-in when it can; if it hasn't confirmed shortly, truncate ourselves
     // so the conversation history matches what was actually heard.
     setTimeout(() => {
-      if (resp.truncateConfirmed || !resp.itemId) return;
-      send({ type: "conversation.item.truncate", item_id: resp.itemId, content_index: 0, audio_end_ms: heardMs });
-      setInterruptions((s) => s.map((x) => (x === stat ? { ...x, truncation: "client" } : x)));
+      if (!resp.truncateConfirmed && resp.itemId) {
+        send({ type: "conversation.item.truncate", item_id: resp.itemId, content_index: 0, audio_end_ms: heardMs });
+        setInterruptions((s) => s.map((x) => (x === stat ? { ...x, truncation: "client" } : x)));
+      }
+      logAssistant(resp);
     }, 700);
-  }, [send, upsert, note]);
+  }, [send, upsert, note, logAssistant]);
 
   // ---- tool bridge ----
   const startCall = useCallback(
@@ -240,7 +264,7 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
       } catch {
         return;
       }
-      if (!["response.output_audio_transcript.delta", "conversation.item.input_audio_transcription.delta"].includes(ev.type)) {
+      if (!ev.type.endsWith(".delta")) {
         note("in", ev.type, ev.type === "error" ? JSON.stringify(ev.error) : undefined);
       }
       switch (ev.type) {
@@ -267,7 +291,16 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
         }
         case "response.created": {
           const resp = ev.response as { id: string };
-          c.responses.set(resp.id, { id: resp.id, msgId: `va-${resp.id}`, turnId: c.turnId, text: "", interrupted: false, truncateConfirmed: false, calls: [] });
+          c.responses.set(resp.id, {
+            id: resp.id,
+            msgId: `va-${resp.id}`,
+            turnId: c.turnId,
+            text: "",
+            interrupted: false,
+            truncateConfirmed: false,
+            logged: false,
+            calls: [],
+          });
           c.activeResponseId = resp.id;
           if (c.audioEl) c.audioEl.muted = false;
           break;
@@ -283,18 +316,25 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
         }
         case "output_audio_buffer.started": {
           c.speaking = true;
-          const resp = c.responses.get(String(ev.response_id ?? c.activeResponseId));
+          const rid = String(ev.response_id ?? c.activeResponseId);
+          c.playingResponseId = rid;
+          const resp = c.responses.get(rid);
           if (resp) resp.audioStart ??= performance.now();
           break;
         }
         case "output_audio_buffer.stopped":
-        case "output_audio_buffer.cleared":
+        case "output_audio_buffer.cleared": {
           c.speaking = false;
+          const resp = c.responses.get(String(ev.response_id ?? c.playingResponseId));
+          c.playingResponseId = null;
+          if (resp && !resp.interrupted) logAssistant(resp); // full answer was heard
           break;
+        }
         case "conversation.item.truncated": {
           const resp = [...c.responses.values()].find((x) => x.itemId === ev.item_id);
           if (resp) {
             resp.truncateConfirmed = true;
+            resp.interrupted = true;
             const ms = Number(ev.audio_end_ms ?? 0);
             resp.heardText = heardPortion(resp.text, ms);
             upsert(resp.msgId, voiceMsg(resp.msgId, "assistant"), (m) => ({ ...m, text: resp.heardText ?? m.text, interrupted: true }));
@@ -325,17 +365,9 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
             }).then((res) => res?.costUsd && setCostUsd((x) => x + (res.costUsd ?? 0)));
           }
           if (resp) {
-            const spoken = (resp.interrupted ? resp.heardText : resp.text)?.trim();
             upsert(resp.msgId, voiceMsg(resp.msgId, "assistant"), (m) => ({ ...m, streaming: false }));
-            if (spoken) {
-              void post<{ flags: string[] }>("/api/voice/events", {
-                sessionId,
-                turnId: resp.turnId,
-                event: { kind: "assistant_transcript", text: spoken, interrupted: resp.interrupted },
-              }).then((res) => {
-                if (res?.flags.length) upsert(resp.msgId, voiceMsg(resp.msgId, "assistant"), (m) => ({ ...m, flags: res.flags }));
-              });
-            }
+            // Audio responses are logged when playback stops (or on interruption); text-only ones now.
+            if (resp.audioStart === undefined) logAssistant(resp);
             // Return every tool result for this response, then ask the model to continue.
             if (resp.calls.length) {
               const outputs = await Promise.all(resp.calls);
@@ -355,7 +387,7 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
         }
       }
     },
-    [interrupt, note, post, send, sessionId, startCall, upsert],
+    [interrupt, note, post, send, sessionId, startCall, upsert, logAssistant],
   );
 
   // ---- connect ----
