@@ -182,3 +182,28 @@ What was done, what was tried and dropped, problems found, AI use.
 
 **Grader re-run** (same Phase 6 prompt, fresh context): about **80/100** (agentic 29/35, voice 19/25, code 22/25, production 10/15), up from about 77.5 before the Phase 6 fixes. It ran the 116 tests, typecheck and lint (clean) and 8 live chats (~$0.015; created ESC-1009/1010, no refunds). Remaining deductions: no Loom yet; a pending ledger entry left by an exception (e.g. the public `tool_failure` fault) blocks that invoice with REFUND_IN_PROGRESS and never expires (confirmed in `lib/tools/tools.ts:162-176`); the regex claim gate misses paraphrases ("Your refund is complete."); the agent's final policy wording isn't grounded; all-or-nothing grounding escalates partly correct answers; voice controls (session.update, cap, usage) are client-side; no listening/speaking indicator. Not fixed in this phase (timebox); listed for the user to choose.
 
+## 2026-11-23 · Phase 8: grader deductions (started 22:55)
+
+**Done** (each reproduced first, then fixed, tested, deployed `670a399`, re-verified live)
+- Pending refunds expire after 2 min (D51): failing tests first; live: `tool_failure` locked inv_2004, another session refunded it after expiry; ledger shows one REQUEST_EXPIRED and one succeeded.
+- Two-layer claim gate (D52): model extraction + code comparison, 20/20 on a labelled set vs regex 11/20, ~$0.0001 / 0.8 s per check.
+- Partial grounding (D53): v2 held-out unchanged (FE 1/15, ME 0/15).
+- Refund requests always go to issue_refund (D54): voice 3/3 live (was 0/3); chat scenarios 6/6.
+- Activity indicator; `/api/rag/search` limited in all modes (live 429); eligibility wording prompt rule.
+- Tests 116 → 134.
+
+**Problems found**
+- First claim-check design (model compares with the log) over-flagged true claims (10/14); redesigned to extraction + code.
+- My shell swallowed `$58`/`$29` in three new labelled items; that run was discarded and re-run with the right text.
+- The activity indicator stuck on "Thinking…" live (one audio buffer spans the tool call; its stop event names the first response); now derived from state, with a test of the live sequence.
+- The `--repeat` parsing from Phase 7 dropped the model name without `--repeat`; fixed in its own commit.
+- v2 re-run swapped two decisions (v09, v11); v09 re-checked twice and answered correctly (model variance).
+
+**Not done**
+- Server-enforced voice limits (item 5): the sideband/hangup API exists, but our browser does the SDP exchange, so the server has no call_id. Moving the SDP exchange server-side changes the verified voice path; documented with options (D55).
+
+**Grader re-run** (same prompt, fresh context): about **79/100** (agentic 29, voice 19, code 21, production 10), vs about 80 after Phase 7. Different live probes: it found the agent skipping get_policy on a policy question asked after an escalation (session 659dd4bc), unverified Pro-plan questions escalating, `/api/rag/search` bypassing the tier gate and returning traces, low confidence being "suggested" rather than an escalated turn state, and still no Loom. These are its observations; I haven't reproduced the get_policy skip myself.
+
+**AI use**
+- Claude Code (Opus) wrote the fixes and tests, ran the evals and live voice checks (test clips) in the built-in browser, and re-ran the independent grader.
+
