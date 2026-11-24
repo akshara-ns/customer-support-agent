@@ -242,3 +242,39 @@ What was done, what was tried and dropped, problems found, AI use.
 
 **AI use**
 - Claude Code (Opus) implemented and tested the fixes, ran the A/B scenario runs and the live checks in the built-in browser (voice via test clips).
+
+## 2026-11-24 · Phase 10A: fixes from the senior-engineer review (started 00:16)
+
+**Done** (each reproduced first, tested, deployed, live-checked)
+- D62 fresh authorization.
+- D63 turn deadline.
+- D64 final-reply grounding, including in-code escalation for no-tool replies.
+- D65 voice response queue and cancelled outputs.
+- D66 lockout per account + client.
+- D67 email reuse after a failed PIN (S4 1/3 → 3/3).
+- D68 ticket keys.
+- D69 claim-check trigger and timeout.
+- D70 client-reported transcripts.
+- Escalation card shows the guardrail reason.
+- Functions pinned to `iad1`.
+- Tests 152 → 182. Scenarios 18/18, twice.
+- Live on `1506202`:
+  - voice chain with two interruptions;
+  - chat chain;
+  - over-limit refused;
+  - "stock" and "tax return" → escalated with ticket and reason;
+  - LLM 429 → retry → answer;
+  - rag search: 403 without the admin key, every-tier sections publicly, tier and trace with the key.
+
+**Problems found**
+- Final grounding v1 escalated tool turns (12/18); narrowed to no-tool turns.
+- Live: the handoff lost its ticket number to trimming; fixed.
+- A test used a 1-character question that failed validation (found by debugging, not a code bug).
+- The voice tests encoded the old "no output for interrupted calls" behaviour and were updated.
+- v2 held-out: v11 flipped again (2/15 FE).
+
+**Not done**
+- In-memory session log per turn.
+
+**AI use**
+- Claude Code (Opus) implemented and tested the fixes, ran the A/B and scenario runs, and the live checks in the built-in browser (voice via test clips).

@@ -67,7 +67,17 @@ flowchart LR
 4. Write the action to the ledger.
 5. Log the call and its result.
 
-Each step streams `step_started` / `step_completed` events ("Verifying identity and account tier…", "Searching knowledge base…"). The reply streams **sentence by sentence through a two-layer claim gate**. Layer 1 (regex, per sentence) replaces canonical false claims at once. Layer 2: from the first sentence that mentions money or tickets, the rest of the reply is held. `gpt-5.4-nano` then extracts every action the reply says was done (refund or ticket, with amount, invoice and ticket number), and **code** compares them with the session's tool log. False ones are replaced with the truth before release. Measured 20/20 on a hand-labelled set (regex alone 11/20), about $0.0001 and 0.8 s per check (`evals/ACTION_CLAIMS.md`). In voice, audio already spoken can't be rewritten, so layer 2 flags instead. Events are numbered; a dropped stream resumes from the last number.
+Each step streams `step_started` / `step_completed` events ("Verifying identity and account tier…", "Searching knowledge base…"). A tool turn with no model preamble first streams a short, claim-free acknowledgment, so first text arrives in under a second.
+
+**What reaches the customer is checked in three layers:**
+1. **Regex claim gate, per sentence.** Canonical false action claims are replaced at once.
+2. **Final-reply grounding** (`lib/guardrails/final-reply.ts`). The final reply is held. `gpt-5.4-nano` lists its factual claims, and each must be stated by a record our tools returned in this conversation (grounded policy answers, receipts, refusals, tickets, the account view).
+   - **No tool this turn and an unsupported claim** (off-topic, invented facts): code runs the guardrail itself, `get_policy` on the customer's own message. So "recommend a stock" reaches the escalated state with a ticket whatever the model chose to do.
+   - **After a policy lookup:** unsupported sentences are removed. If the lookup escalated, the deterministic handoff with the ticket number is used.
+   - **Turns with only action tools:** a finding is logged, not acted on, because the checker flags harmless paraphrases of tool results.
+3. **Model action-claim check**, only on text with a completion verb, amount or ticket id. 2 s cap, no retries; on timeout the regex result stands and the trace flags it. False claims are replaced with the truth from the tool log (20/20 on a labelled set, `evals/ACTION_CLAIMS.md`).
+
+In voice, audio already spoken can't be rewritten, so these checks flag instead. Every chat turn has one **40 s deadline**: its AbortSignal reaches every OpenAI call (8 s per call inside tools, no SDK retries; our retry layer is the only one). On deadline the customer gets a fallback reply and a `done` event. Events are numbered; a dropped stream resumes from the last number.
 
 **Voice** (OpenAI Realtime over WebRTC). The server mints a 60-second ephemeral key with the instructions, tools and verified-account context; the browser connects directly.
 - **Tool calls** go to `/api/voice/tool`, which runs the **same tool step as chat**.
@@ -192,10 +202,10 @@ npm run dev                       # http://localhost:3000
   - transcript and usage posts are rate limited.
 
   Making it server-enforced needs the SDP exchange moved to the server; see DECISIONS D55.
-- **Escalation depends on the model calling get_policy for off-topic requests.** In a fresh verified session, "recommend a stock" was declined without any tool call, so there was no escalated state; in another session with earlier handoffs, the model opened a ticket directly. Unit tests and live runs cover the path whenever get_policy is called. Not fixed before the freeze: each prompt change this phase moved other scenarios.
-- **Scenario S4 (failed identity) is 1/3.** After a failed attempt the agent asks for both email and PIN again instead of retrying with the email it has. No access is ever granted, and the 3-strike lock works when it gets 3 attempts. An A/B shows the Phase 8 refund-routing wording (D54) caused this: S4 was 3/3 with the Phase 7 prompt and tool descriptions. That wording is kept because it fixed the voice over-limit case (3/3).
-- **The refund-requested guard is chat-only.** In voice, the caller's transcript is posted asynchronously and can arrive after the tool call, so enforcing it there would refuse real spoken requests.
-- **Answer wording** can still be inconsistent in ways no check catches. The Phase 8 eligibility prompt rule was removed again because it made the model skip issue_refund (S6).
+- **Final-reply grounding uses a model.** Its false positives are bounded by design: tool turns are only logged, and only no-tool turns can trigger the in-code guardrail. In the final scenario runs this cost nothing: 18/18 twice.
+- **Voice transcripts are client-reported.** The browser posts them, so they are stored as `clientReported` with the realtime item time, ordered by it, and labelled in the chat model's context. They are never treated as a record of actions.
+- **The refund-requested guard is chat-only, and per conversation.** In voice, the caller's transcript can arrive after the tool call. It checks that the customer asked for *a* refund, not which invoice: once seen, the model refunded a different invoice than the one asked about.
+- **Not done in Phase 10A:** keeping the session log in memory during a turn (fewer DB round trips). Functions are pinned to `iad1`, next to Neon, where they already ran, so that pin brings no TTFT change.
 - **Eval sizes are small.** They show the behaviour, not a tight error bound:
   - 30 + 30 guardrail queries;
   - 6 scenarios × 3 runs;

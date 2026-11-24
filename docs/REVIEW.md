@@ -103,3 +103,44 @@ Also found while doing this: the scenario runner's `--repeat` parsing (Phase 7) 
 - S4 at 1/3.
 - Voice limits are client-side (D55, the user's decision: keep documented).
 - No Loom yet.
+
+## Phase 10A: findings from both independent reviews and their status (2026-11-24)
+
+### Senior-engineer review
+
+| # | Finding | Reproduced by | Fix | Status |
+|---|---|---|---|---|
+| SR-1 | Stale authorization: refunds used the verification snapshot | `tests/fresh-authorization.test.ts`, 2 of 3 failing first | D62 | **Fixed** |
+| SR-2 | No end-to-end turn deadline; SDK retries under ours | Hung model, tool and ledger tests (unbounded before) | D63; 3 tests | **Fixed** |
+| SR-3 | Final text not grounded | — (design) | D64; 6 tests; live: no-tool off-topic and policy turns | **Fixed** |
+| SR-4 | Voice tool-call race; interrupted calls without outputs | New tests failing on the old client | D65; 4 tests | **Fixed** (unit-tested; live voice chain re-checked) |
+| SR-5 | Lockout abusable per account | New tests | D66; 3 tests incl. live Postgres | **Fixed** |
+| SR-6 | Tickets deduped by reason only | `tests/ticket-dedupe.test.ts`, 1 of 3 failing first | D68 | **Fixed** |
+| SR-7 | Claim check too broad, no timeout | — | D69; 3 tests | **Fixed** |
+| SR-8 | Browser transcripts stored as trusted, arrival order | — | D70; 2 tests | **Fixed** |
+| SR-9 | DB round trips per turn; region | — | Region pinned to `iad1` (already there, so no TTFT change); in-memory session log not done | **Partly** |
+
+### Grader re-run after Phase 8 (about 79/100)
+
+| Finding | Status |
+|---|---|
+| No Loom walkthrough | **Open** (to record) |
+| Agent skipped get_policy after a ticket turn | Not reproduced (P9-4). Now covered in code: no-tool replies with unsupported claims go through the guardrail (D64) |
+| Unverified tier questions escalated | **Fixed** (P9-3, D59) |
+| `/api/rag/search` bypassed the tier gate | **Fixed** (P9-2, D58) |
+| Low confidence was a suggestion, not a state | **Fixed** (P9-1, D57); card shows the guardrail reason (P10A item 11) |
+| Voice caps client-side | Documented, the user's decision (D55) |
+| Slow first text | **Fixed** (P9-5, D60): 0.5–0.9 s live |
+| Tool spans `ok` when the tool returned an error; voice spans 0 ms; e2e includes caller speech | **Open** (observability polish) |
+| Code hygiene: stale comment `bridge.ts:3`, deprecated alias, duplicated serializers, `ModelError.transient`, duplicate imports | **Open** |
+| Public fault injection; global daily caps shared by all | Accepted for a public demo (documented) |
+
+### Phase 9 open items folded in
+- **Off-topic escalation without get_policy:** fixed by D64. Live: "recommend a stock" → ESC-1015, card "no relevant policy found · 0.18"; "tax return" → ESC-1016, card "our documentation doesn't cover this · 0.43".
+- **Escalation card reason:** fixed. Shows the guardrail's reason, not the ticket category.
+- **S4 1/3:** fixed in code (D67), now 3/3.
+
+**Problems found while doing this:**
+- The first final-grounding version escalated tool turns on harmless paraphrases (scenarios 12/18); narrowed.
+- The live check found the handoff trimmed away its own ticket number; fixed, with a test.
+- v2 held-out re-run: FE 2/15, ME 0/15. One flip (v11, Free "version history", `answer_declined`). Over three runs v11 escalated twice: answer-model variance, not an API error from the retry change.
