@@ -207,3 +207,38 @@ What was done, what was tried and dropped, problems found, AI use.
 **AI use**
 - Claude Code (Opus) wrote the fixes and tests, ran the evals and live voice checks (test clips) in the built-in browser, and re-ran the independent grader.
 
+## 2026-11-23/24 · Phase 9: final fixes, then feature freeze (started 23:47)
+
+**Done**
+- Escalated state for guardrail escalations: ticket in code (verified), offered (unverified), reason and confidence in the card (D57).
+- `/api/rag/search` locked to every-tier sections without the admin key (D58).
+- Unverified tier questions ask to verify (D59).
+- Early acknowledgment: time to first token 5.5–7.1 s → 0.57–0.79 s (D60).
+- Refund only when requested, enforced in code (D61).
+- Spacing bug between model steps fixed.
+- `--only` added to the scenario runner. Tests 134 → 152.
+- Live check on `b8a9698`:
+  - chat chain (verify by voice, then refund + policy);
+  - over-limit refused by the tool;
+  - out-of-scope → escalated state (unverified);
+  - LLM 429 ×2 → retry banner → answer;
+  - voice chain with interruption;
+  - verify-first for a Pro question.
+
+**Problems found**
+- The 6-scenario run after the first deploy was 5/6, then 18 runs gave S4 0/3 and S6 0/3. A/B runs with `--only` traced S6 to my Phase 8 eligibility rule (removed) and to the acknowledgment in the model's context (now display-only). S4 traced to the Phase 8 refund-routing wording (kept for voice; documented).
+- S5 issued an unrequested refund in one run. Now refused in code.
+- A commit picked up another change's lines in `run.ts`; split before pushing.
+- Committed once with the architecture test failing (`lib/admin.ts` unassigned to a layer); fixed in the same unpushed commit.
+
+**Not reproduced**
+- The grader's skipped-lookup case (P9-4 in REVIEW).
+
+**Open at the freeze**
+- Off-topic escalation depends on the model calling get_policy.
+- S4 1/3.
+- Voice limits are client-side.
+- Loom.
+
+**AI use**
+- Claude Code (Opus) implemented and tested the fixes, ran the A/B scenario runs and the live checks in the built-in browser (voice via test clips).

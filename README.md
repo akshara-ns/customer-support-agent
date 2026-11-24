@@ -93,15 +93,19 @@ Each step streams `step_started` / `step_completed` events ("Verifying identity 
    - Re-run after partial grounding (2026-11-24 04:04 UTC): FE 1/15, ME 0/15, unchanged per category. Two decisions swapped (v09 now escalated, v11 answered); a re-check showed v09 answers correctly, so this is answer-model variance.
    - History: the original held-out split (10 queries, 2026-11-24 01:00 UTC) scored **1/6 false escalations, 0/4 missed**.
    - Similarity alone can't separate near-miss questions from answerable ones (it needs t ≥ 0.58, which escalates 67% of answerable queries). So the threshold screens clear out-of-scope queries before any LLM call, and gate 2 catches near-misses. See `evals/RESULTS.md`.
-2. **Grounding gate:** the answer must cite retrieved chunk ids. Every cited id must exist in the retrieved set. A second model (`gpt-5.4-nano`, chosen by a hand-labelled sanity set: 9/9) checks each claim against the cited chunks. **Partial grounding:** the checker also marks whether each claim answers the question. If only side details are unsupported, those sentences are removed (with a note that some details couldn't be confirmed) and the rest is answered. Otherwise a missing or invalid citation, an unsupported claim that answers the question, or a "not covered" answer → **escalation state** (typed decision with reason, confidence and evidence; the UI shows an escalation card).
+2. **Grounding gate:** the answer must cite retrieved chunk ids. Every cited id must exist in the retrieved set. A second model (`gpt-5.4-nano`, chosen by a hand-labelled sanity set: 9/9) checks each claim against the cited chunks. **Partial grounding:** the checker also marks whether each claim answers the question. If only side details are unsupported, those sentences are removed (with a note that some details couldn't be confirmed) and the rest is answered. Otherwise a missing or invalid citation, an unsupported claim that answers the question, or a "not covered" answer → **escalation state** (typed decision with reason, confidence and evidence). An escalation from get_policy is a real handoff:
+   - The turn ends in the **`escalated` state**, in chat and in voice. It is recorded in the session log and in the drawer's `turn_end`.
+   - A verified customer gets a **P3 `low_confidence` ticket opened in code**. An unverified customer is offered one.
+   - The UI card shows the reason and the retrieval confidence.
+   - The model receives a `next_step` handoff line to say (or speak).
 
 ## Tools and policy (enforced in code)
 
 | Tool | Rules |
 |---|---|
 | `verify_identity(email, 6-digit PIN)` | Strict formats (placeholders don't count as attempts). Same error whether or not the email exists. Lock after 3 failures in a conversation (opens a P1 security ticket) **and** after 5 per account across sessions. Returns tier, contract status and invoices only (no name, email or PIN). |
-| `get_policy(question)` | The guarded RAG pipeline above, filtered to the **verified** customer's tier (general sections only before verification). |
-| `issue_refund(invoice, amount, reason)` | Identity → contract active (an expired contract or suspended account opens the required billing ticket in code) → own invoice → no chargeback → not already refunded → whole cents → ≤ invoice → within window → ≤ tier limit (Free $20/7 d, Pro $200/30 d, Enterprise $1,000/60 d). **Write-ahead, idempotent ledger:** recorded before any success is acknowledged. A unique index allows one active refund per invoice, even under concurrency. A pending entry left by a crash **expires after 2 minutes**: the next request on that invoice marks it `REQUEST_EXPIRED` and retires its key, while a request can always resume its own entry. |
+| `get_policy(question)` | The guarded RAG pipeline above, filtered to the **verified** customer's tier (general sections only before verification). Before verification, if the general search escalates but a retrieval-only check finds the answer in tier-specific sections, it returns `needs_verification` and the agent asks for email and PIN instead of escalating. |
+| `issue_refund(invoice, amount, reason)` | **The customer asked for a refund** (in chat: some customer message in the conversation asks for one, else `REFUND_NOT_REQUESTED`) → identity → contract active (an expired contract or suspended account opens the required billing ticket in code) → own invoice → no chargeback → not already refunded → whole cents → ≤ invoice → within window → ≤ tier limit (Free $20/7 d, Pro $200/30 d, Enterprise $1,000/60 d). **Write-ahead, idempotent ledger:** recorded before any success is acknowledged. A unique index allows one active refund per invoice, even under concurrency. A pending entry left by a crash **expires after 2 minutes**: the next request on that invoice marks it `REQUEST_EXPIRED` and retires its key, while a request can always resume its own entry. |
 | `create_escalation_ticket(reason, summary)` | Priority from the escalation policy, response target from the tier, idempotent per session and reason. |
 
 ## Resilience, observability, production
@@ -157,6 +161,7 @@ npm run dev                       # http://localhost:3000
 | `npm run eval:agent -- gpt-5.4-mini [--repeat 3]` | Live multi-turn scenarios → `evals/AGENT_RESULTS.md` (~$0.01 per run of 6; `--repeat 3` ≈ $0.06) |
 | `npm run eval:heldout` | Fresh 30-query held-out guardrail set, run once → `evals/RESULTS.md` (~$0.02) |
 | `npm run demo:reset` | Clears demo refunds and tickets (developer machine only; asks to confirm) |
+| `GET /api/rag/search?q=…[&answer=1]` | Retrieval inspector. Public: sections for every tier, no traces. With header `x-admin-key: $ADMIN_KEY`: `&tier=` filter, full trace and drafts |
 | `npm run voice:clips` | Regenerates the synthetic caller clips for `/voice-debug` |
 
 ## Evidence
@@ -187,7 +192,10 @@ npm run dev                       # http://localhost:3000
   - transcript and usage posts are rate limited.
 
   Making it server-enforced needs the SDP exchange moved to the server; see DECISIONS D55.
-- **Answer wording** can still be inconsistent in ways no check catches. The eligibility contradiction seen once now has a prompt rule, not a code check.
+- **Escalation depends on the model calling get_policy for off-topic requests.** In a fresh verified session, "recommend a stock" was declined without any tool call, so there was no escalated state; in another session with earlier handoffs, the model opened a ticket directly. Unit tests and live runs cover the path whenever get_policy is called. Not fixed before the freeze: each prompt change this phase moved other scenarios.
+- **Scenario S4 (failed identity) is 1/3.** After a failed attempt the agent asks for both email and PIN again instead of retrying with the email it has. No access is ever granted, and the 3-strike lock works when it gets 3 attempts. An A/B shows the Phase 8 refund-routing wording (D54) caused this: S4 was 3/3 with the Phase 7 prompt and tool descriptions. That wording is kept because it fixed the voice over-limit case (3/3).
+- **The refund-requested guard is chat-only.** In voice, the caller's transcript is posted asynchronously and can arrive after the tool call, so enforcing it there would refuse real spoken requests.
+- **Answer wording** can still be inconsistent in ways no check catches. The Phase 8 eligibility prompt rule was removed again because it made the model skip issue_refund (S6).
 - **Eval sizes are small.** They show the behaviour, not a tight error bound:
   - 30 + 30 guardrail queries;
   - 6 scenarios × 3 runs;

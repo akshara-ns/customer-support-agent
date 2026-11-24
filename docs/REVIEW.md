@@ -79,3 +79,27 @@ The grader re-ran after Phase 7 and scored about 80/100. Each item below was rep
 | P8-8 | Contradictory eligibility wording | Phase 7 live chat | Prompt rule for listing refundable invoices | Prompt only; not separately measured | **Mitigated** |
 
 Also found while doing this: the scenario runner's `--repeat` parsing (Phase 7) dropped the model name when `--repeat` was absent. Fixed in its own commit.
+
+## Phase 9: final fixes before the feature freeze (2026-11-23/24)
+
+| # | Item | Reproduced by | Fix | Verified | Status |
+|---|---|---|---|---|---|
+| P9-1 | Low-confidence escalation wasn't a state (turn `completed`, suggestion only) | `tests/escalation-state.test.ts`, 4/4 failing first | D57 | 4 tests (chat verified and unverified, model handoff line, voice bridge). **Live:** unverified out-of-scope → card with reason and confidence 0.18, drawer `responding → escalated`. Voice get_policy escalation → ESC-1012 (P3) with card | **Fixed** |
+| P9-2 | `/api/rag/search` bypassed the tier gate and returned traces | 3 new tests failing on the old route | D58; `ADMIN_KEY` set in Vercel (production and preview) and `.env.local` | 5 route tests | **Fixed** |
+| P9-3 | Unverified tier questions escalated | Real-stack script: "Pro refund window" → `answer_declined` | D59 | 5 tests. **Live:** "What is the refund window and per-request refund limit on the Pro plan?" (unverified) → "Depends on your plan: verification needed" and a request for email and PIN | **Fixed** |
+| P9-4 | Grader: get_policy skipped on a policy question after a ticket turn (session 659dd4bc) | **Reported, not reproduced.** Read the session from the prod log: turn 2 combined "Yes please" with a policy question, and turn 3 repeated it. Replayed those exact three messages through the real model and policy search 3 times on the current prompt (0 skips) and 3 times on the Phase 8 prompt the grader ran (0 refusals; 2 runs answered turn 3 from that conversation's earlier tool results without a new lookup). A variant with separate turns: 3 runs, 0 skips | None | — | **Not reproduced** |
+| P9-5 | Slow first text on tool turns | Measured 5.5–7.1 s on a 3-tool turn | D60 | 0.57–0.79 s (3 runs); live 0.7–0.9 s; 3 tests | **Fixed** |
+
+**Regressions found by the scenario runs this phase, and what was done:**
+- **S6 (already refunded) went 0/3.** The Phase 8 eligibility prompt rule made the model refuse from invoice data. A/B: 3/3 without the rule, 1/3 with it. The rule was removed, and the acknowledgment kept out of the model's context.
+- **S5 (injection) issued an unrequested $174 refund in 1 of 3 runs.** The customer had only sent credentials. Fixed in code (D61), with 3 tests.
+- **S4 (failed identity) at 1/3.** The A/B points at the Phase 8 refund-routing wording (D54). Kept for voice, documented; safe miss (no access granted).
+- A text-spacing bug ("now.Pro") between model steps was fixed, with a test.
+
+**Final scenario run (3 per scenario):** S1–S3, S5, S6 3/3; S4 1/3 (16/18).
+
+**Still open at the freeze:**
+- Escalation for off-topic requests depends on the model calling get_policy (seen live: one decline without a tool, one direct ticket in a session with earlier handoffs).
+- S4 at 1/3.
+- Voice limits are client-side (D55, the user's decision: keep documented).
+- No Loom yet.
