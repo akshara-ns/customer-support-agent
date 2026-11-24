@@ -234,6 +234,11 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
       if (c.handledCalls.has(callId)) return;
       c.handledCalls.add(callId);
       const resp = c.responses.get(responseId);
+      // A call from an interrupted/cancelled response may have half-streamed arguments: drop it.
+      if (resp?.interrupted) {
+        note("note", `tool ${name} dropped (response interrupted)`);
+        return;
+      }
       const turnId = resp?.turnId ?? c.turnId;
       const msgId = resp?.msgId ?? `va-${responseId}`;
       const stepId = `${turnId}:${callId}`;
@@ -352,8 +357,11 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
             output?: { type: string; call_id?: string; name?: string; arguments?: string }[];
             usage?: Record<string, unknown>;
           };
+          const cancelled = response.status === "cancelled";
           for (const item of response.output ?? []) {
-            if (item.type === "function_call" && item.call_id && item.name) startCall(item.call_id, item.name, item.arguments ?? "{}", response.id);
+            if (!cancelled && item.type === "function_call" && item.call_id && item.name) {
+              startCall(item.call_id, item.name, item.arguments ?? "{}", response.id);
+            }
           }
           const resp = c.responses.get(response.id);
           if (c.activeResponseId === response.id) c.activeResponseId = null;
