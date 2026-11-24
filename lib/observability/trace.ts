@@ -9,12 +9,17 @@ export interface Usage {
   model: string;
   tokensIn: number;
   tokensOut: number;
+  /** Prompt tokens served from the provider's cache (billed at the cached rate). */
+  cachedTokens?: number;
 }
 
+/** Estimated cost: provider-reported tokens x the pricing table in lib/config.ts (dated there). */
 export function estimateCostUsd(u: Usage): number {
   const price = PRICING_PER_MTOK[u.model];
   if (!price) return 0;
-  return (u.tokensIn * price.input + u.tokensOut * price.output) / 1_000_000;
+  const cached = Math.min(u.cachedTokens ?? 0, u.tokensIn);
+  const cachedRate = price.cachedInput ?? price.input;
+  return ((u.tokensIn - cached) * price.input + cached * cachedRate + u.tokensOut * price.output) / 1_000_000;
 }
 
 export interface SpanHandle {
@@ -26,6 +31,8 @@ export class Trace {
   readonly turnId: string;
   readonly spans: TraceSpan[] = [];
   private readonly t0 = performance.now();
+  /** Open spans; turns are sequential, so the top of the stack is the parent of a new span. */
+  private readonly stack: string[] = [];
 
   constructor(turnId: string = crypto.randomUUID()) {
     this.turnId = turnId;
@@ -37,6 +44,7 @@ export class Trace {
     const span: TraceSpan = {
       id: crypto.randomUUID(),
       turnId: this.turnId,
+      parentId: this.stack.at(-1),
       kind,
       name,
       status: "ok",
@@ -44,6 +52,7 @@ export class Trace {
       durationMs: 0,
       input,
     };
+    this.stack.push(span.id);
     const handle: SpanHandle = {
       output: (value) => {
         span.output = value;
@@ -51,6 +60,7 @@ export class Trace {
       usage: (u) => {
         span.tokensIn = (span.tokensIn ?? 0) + u.tokensIn;
         span.tokensOut = (span.tokensOut ?? 0) + u.tokensOut;
+        if (u.cachedTokens) span.tokensCached = (span.tokensCached ?? 0) + u.cachedTokens;
         span.costUsd = (span.costUsd ?? 0) + estimateCostUsd(u);
       },
     };
@@ -62,6 +72,7 @@ export class Trace {
       throw err;
     } finally {
       span.durationMs = Math.round(performance.now() - t0);
+      this.stack.splice(this.stack.lastIndexOf(span.id), 1);
       this.spans.push(span);
     }
   }
@@ -71,6 +82,7 @@ export class Trace {
     this.spans.push({
       id: crypto.randomUUID(),
       turnId: this.turnId,
+      parentId: this.stack.at(-1),
       kind,
       name,
       status: "ok",

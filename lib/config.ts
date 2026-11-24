@@ -19,12 +19,19 @@ export const MODELS = {
 
 export const EMBEDDING_DIMENSIONS = 1536;
 
-export const PRICING_PER_MTOK: Record<string, { input: number; output: number }> = {
+export const PRICING_PER_MTOK: Record<string, { input: number; output: number; cachedInput?: number }> = {
   "text-embedding-3-small": { input: 0.02, output: 0 },
-  "gpt-5-nano": { input: 0.05, output: 0.4 },
-  "gpt-5.4-nano": { input: 0.2, output: 1.25 },
-  "gpt-5.4-mini": { input: 0.75, output: 4.5 },
+  "gpt-5-nano": { input: 0.05, output: 0.4, cachedInput: 0.005 },
+  "gpt-5.4-nano": { input: 0.2, output: 1.25, cachedInput: 0.02 },
+  "gpt-5.4-mini": { input: 0.75, output: 4.5, cachedInput: 0.075 },
 };
+
+/** Shown next to every cost in the UI: costs are estimates from this table, not invoices. */
+export const PRICING_SOURCE = {
+  checked: "2026-11-23",
+  source: "OpenAI API pricing page (developers.openai.com/api/docs/pricing) and model pages",
+  note: "Estimated: provider-reported token usage x list prices. Excludes taxes, discounts and batch pricing.",
+} as const;
 
 export const CHUNKING = {
   /** Hard cap per chunk (approximate tokens: chars / 4). */
@@ -82,4 +89,6 @@ export const VOICE = {
   clientSecretTtlSeconds: 60,
   /** Recent chat/voice messages replayed into a new voice session. */
   historyMessages: 12,
+  /** Per realtime response, enforced server-side by OpenAI (~1 minute of speech). */
+  maxOutputTokens: 1500,
 } as const;

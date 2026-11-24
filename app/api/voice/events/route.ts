@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { RATE_LIMITS } from "@/lib/config";
+import { errorResponse, log, newRequestId } from "@/lib/log";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { recordVoiceEvent } from "@/lib/voice/bridge";
 import { productionEvents } from "@/lib/voice/deps";
@@ -20,14 +21,21 @@ const Body = z.object({
   event: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("user_transcript"), text: z.string().trim().min(1).max(4000) }),
     z.object({ kind: z.literal("assistant_transcript"), text: z.string().trim().min(1).max(8000), interrupted: z.boolean() }),
-    z.object({ kind: z.literal("usage"), model: z.string().max(64), usage: Usage, responseId: z.string().max(100).optional() }),
+    z.object({
+      kind: z.literal("usage"),
+      model: z.string().max(64),
+      usage: Usage,
+      responseId: z.string().max(100).optional(),
+      latencyMs: z.number().min(0).max(120_000).optional(),
+    }),
   ]),
 });
 
 /** POST /api/voice/events: voice transcripts into the shared session log; realtime usage into traces. */
 export async function POST(request: Request): Promise<Response> {
+  const requestId = newRequestId(request);
   const parsed = Body.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "invalid_request" }, { status: 400 });
+  if (!parsed.success) return errorResponse(400, "invalid_request", "Invalid request body.", requestId);
   try {
     const limit = await consumeLimits(request, [...RATE_LIMITS.voiceEvents]);
     if (!limit.allowed) return rateLimitedResponse(limit);
@@ -35,7 +43,7 @@ export async function POST(request: Request): Promise<Response> {
     const result = await recordVoiceEvent(sessionId, turnId, event, { events: productionEvents, traces: pgTraceWriter });
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
-    console.error("voice event failed", err);
-    return Response.json({ error: "unavailable" }, { status: 503 });
+    log.error("voice event failed", { requestId, sessionId: parsed.data.sessionId }, err);
+    return errorResponse(503, "unavailable", "Couldn't record the voice event.", requestId);
   }
 }

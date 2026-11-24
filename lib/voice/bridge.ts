@@ -7,7 +7,8 @@ import { runToolStep, toolOutputForModel } from "@/lib/agent/tool-step";
 import { REALTIME_PRICING_PER_MTOK } from "@/lib/config";
 import { actionsForTurn, deriveState, type EventStore } from "@/lib/session/events";
 import type { ToolDeps } from "@/lib/tools/stores";
-import type { AgentEvent } from "@/lib/types";
+import { Trace } from "@/lib/observability/trace";
+import type { AgentEvent, SpanKind } from "@/lib/types";
 
 export interface VoiceToolRequest {
   sessionId: string;
@@ -25,21 +26,27 @@ export interface VoiceToolResponse {
   events: AgentEvent[];
 }
 
-export async function runVoiceTool(req: VoiceToolRequest, deps: { events: EventStore; tools: ToolDeps }): Promise<VoiceToolResponse> {
+export async function runVoiceTool(
+  req: VoiceToolRequest,
+  deps: { events: EventStore; tools: ToolDeps; traceSink?: (trace: Trace, channel: "voice") => Promise<void> },
+): Promise<VoiceToolResponse> {
   await deps.events.ensureSession(req.sessionId);
   const state = deriveState(await deps.events.list(req.sessionId));
   const emitted: AgentEvent[] = [];
+  const trace = new Trace(req.turnId);
   const { outcome } = await runToolStep({
     sessionId: req.sessionId,
     turnId: req.turnId,
     channel: "voice",
     stepId: `${req.turnId}:${req.callId}`,
     call: { id: req.callId, name: req.name, arguments: req.arguments },
-    ctx: { sessionId: req.sessionId, turnId: req.turnId, customer: state.customer, failedVerifications: state.failedVerifications },
+    ctx: { sessionId: req.sessionId, turnId: req.turnId, customer: state.customer, failedVerifications: state.failedVerifications, trace },
     deps: deps.tools,
     events: deps.events,
     emit: (e) => emitted.push(e),
+    trace,
   });
+  if (deps.traceSink) await deps.traceSink(trace, "voice").catch((err) => console.error("voice trace persist failed", err));
   return { output: toolOutputForModel(outcome), ok: outcome.result.ok, events: emitted };
 }
 
@@ -68,10 +75,20 @@ export function realtimeCostUsd(model: string, u: RealtimeUsage): number {
 export type VoiceEvent =
   | { kind: "user_transcript"; text: string }
   | { kind: "assistant_transcript"; text: string; interrupted: boolean }
-  | { kind: "usage"; model: string; usage: RealtimeUsage; responseId?: string };
+  | { kind: "usage"; model: string; usage: RealtimeUsage; responseId?: string; latencyMs?: number };
 
 export interface TraceWriter {
-  write(row: { sessionId: string; turnId: string; name: string; tokensIn: number; tokensOut: number; costUsd: number; output: unknown }): Promise<void>;
+  write(row: {
+    sessionId: string;
+    turnId: string;
+    kind: SpanKind;
+    name: string;
+    tokensIn: number;
+    tokensOut: number;
+    tokensCached: number;
+    costUsd: number;
+    output: unknown;
+  }): Promise<void>;
 }
 
 /**
@@ -95,6 +112,9 @@ export async function recordVoiceEvent(
     gate.push(ev.text);
     gate.flush();
     const flags = gate.corrections.map((c) => `${c.reason}: "${c.original}"`);
+    if (flags.length) {
+      await deps.traces.write({ sessionId, turnId, kind: "guardrail", name: "claim_check", tokensIn: 0, tokensOut: 0, tokensCached: 0, costUsd: 0, output: { channel: "voice", flags } });
+    }
     await deps.events.append(sessionId, turnId, "voice", {
       type: "assistant_message",
       text: ev.text,
@@ -107,11 +127,13 @@ export async function recordVoiceEvent(
   await deps.traces.write({
     sessionId,
     turnId,
+    kind: "llm",
     name: `realtime_response:${ev.model}`,
     tokensIn: ev.usage.input_tokens ?? 0,
     tokensOut: ev.usage.output_tokens ?? 0,
+    tokensCached: ev.usage.input_token_details?.cached_tokens ?? 0,
     costUsd,
-    output: { responseId: ev.responseId, usage: ev.usage },
+    output: { responseId: ev.responseId, usage: ev.usage, latencyMs: ev.latencyMs },
   });
   return { flags: [], costUsd };
 }

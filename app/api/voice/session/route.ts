@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { RATE_LIMITS } from "@/lib/config";
+import { errorResponse, log, newRequestId } from "@/lib/log";
 import { serverEnv } from "@/lib/env";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { createVoiceSession, openAISecretMinter } from "@/lib/voice/session";
@@ -12,13 +13,14 @@ const Body = z.object({ sessionId: z.uuid() });
  * recent history. The standard API key stays on the server. Rate limited and capped per day.
  */
 export async function POST(request: Request): Promise<Response> {
+  const requestId = newRequestId(request);
   const parsed = Body.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "invalid_request" }, { status: 400 });
+  if (!parsed.success) return errorResponse(400, "invalid_request", "Invalid request body.", requestId);
   try {
     const limit = await consumeLimits(request, [...RATE_LIMITS.voiceSession]);
     if (!limit.allowed) return rateLimitedResponse(limit);
     const key = serverEnv().OPENAI_API_KEY;
-    if (!key) return Response.json({ error: "unavailable", message: "Voice is not configured." }, { status: 503 });
+    if (!key) return errorResponse(503, "unavailable", "Voice is not configured.", requestId);
     const session = await createVoiceSession(parsed.data.sessionId, {
       events: productionEvents,
       tools: productionToolDeps(),
@@ -26,7 +28,7 @@ export async function POST(request: Request): Promise<Response> {
     });
     return Response.json(session, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
-    console.error("voice session failed", err);
-    return Response.json({ error: "unavailable", message: "Couldn't start a voice session. Please try again." }, { status: 503 });
+    log.error("voice session failed", { requestId, sessionId: parsed.data.sessionId }, err);
+    return errorResponse(503, "unavailable", "Couldn't start a voice session. Please try again.", requestId);
   }
 }

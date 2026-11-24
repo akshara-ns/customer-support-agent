@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { RATE_LIMITS } from "@/lib/config";
+import { FAULTS, runWithFault } from "@/lib/faults";
+import { errorResponse, log, newRequestId } from "@/lib/log";
+import { persistTrace } from "@/lib/observability/pg-traces";
 import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { runVoiceTool } from "@/lib/voice/bridge";
 import { productionEvents, productionToolDeps } from "@/lib/voice/deps";
@@ -12,6 +15,8 @@ const Body = z.object({
   callId: z.string().min(1).max(100),
   name: z.string().min(1).max(64),
   arguments: z.string().max(4000),
+  /** Demo failure simulation for this one tool call (tool_failure, retrieval_down). */
+  simulate: z.enum(FAULTS).optional(),
 });
 
 /**
@@ -19,20 +24,29 @@ const Body = z.object({
  * chat (validation, identity preconditions, policy, ledger, logging). No tool logic in the browser.
  */
 export async function POST(request: Request): Promise<Response> {
+  const requestId = newRequestId(request);
   const parsed = Body.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "invalid_request" }, { status: 400 });
+  if (!parsed.success) return errorResponse(400, "invalid_request", "Invalid tool call.", requestId);
+  const { sessionId } = parsed.data;
   try {
     const limit = await consumeLimits(request, [...RATE_LIMITS.voiceTool]);
     if (!limit.allowed) return rateLimitedResponse(limit);
-    const result = await runVoiceTool(parsed.data, { events: productionEvents, tools: productionToolDeps() });
-    return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    const result = await runWithFault(parsed.data.simulate, () =>
+      runVoiceTool(parsed.data, {
+        events: productionEvents,
+        tools: productionToolDeps(),
+        traceSink: (trace, channel) => persistTrace(sessionId, trace, channel),
+      }),
+    );
+    log.info("voice tool", { requestId, sessionId, tool: parsed.data.name, ok: result.ok, simulate: parsed.data.simulate });
+    return Response.json(result, { headers: { "Cache-Control": "no-store", "x-request-id": requestId } });
   } catch (err) {
-    console.error("voice tool failed", err);
+    log.error("voice tool failed", { requestId, sessionId, tool: parsed.data.name }, err);
     // Still a valid function output, so the model can tell the caller instead of hanging.
     const output = JSON.stringify({
       ok: false,
       error: { code: "TOOL_FAILURE", message: "The system couldn't complete this step. Nothing was changed.", retryable: true },
     });
-    return Response.json({ output, ok: false, events: [] }, { status: 200 });
+    return Response.json({ output, ok: false, events: [] }, { status: 200, headers: { "x-request-id": requestId } });
   }
 }

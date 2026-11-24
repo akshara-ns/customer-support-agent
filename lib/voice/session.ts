@@ -72,6 +72,7 @@ export interface VoiceSessionConfig {
   };
   tools: typeof REALTIME_TOOLS;
   tool_choice: "auto";
+  max_output_tokens: number;
 }
 
 export function voiceSessionConfig(instructions: string): VoiceSessionConfig {
@@ -91,6 +92,9 @@ export function voiceSessionConfig(instructions: string): VoiceSessionConfig {
     },
     tools: REALTIME_TOOLS,
     tool_choice: "auto",
+    // Server-enforced cap per response (the Realtime API has no session-duration setting to back the
+    // 3-minute browser cap; this, the key TTL and the per-IP/daily session caps bound the cost).
+    max_output_tokens: VOICE.maxOutputTokens,
   };
 }
 
