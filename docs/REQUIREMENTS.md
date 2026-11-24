@@ -46,7 +46,7 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done and demonstrated.
 | 3.5 | Tool: simulated action (mock refund within policy limits / account update / escalation ticket) | A | 35% | test: over-limit refund refused; idempotency key dedupes | [x] issue_refund (write-ahead ledger, idempotent) + create_escalation_ticket (DB, idempotent) |
 | 3.6 | Policy enforced in tool code (refund limits, tier, identity, contract) not prompts | A/P | 35%/15% | test: tool refuses even when LLM asks | [x] lib/tools/policy.ts; 16 tool tests; live S2/S3/S5/S6 refusals by code |
 | 3.7 | Stream live status when a tool starts/completes | V/A | 25%/35% | UI: step chips; SSE event log | [x] SSE step events per tool |
-| 3.8 | Voice tool calls go through the same backend tool + guardrail endpoint | A/C | 35%/25% | Loom: voice refund shows in same trace drawer; test: endpoint | [x] /api/voice/tool runs the same runToolStep; parity unit test; VOICE_CHECKS #1, #3 |
+| 3.8 | Voice tool calls go through the same backend tool + guardrail endpoint | A/C | 35%/25% | Loom: voice refund shows in same trace drawer; test: endpoint | [x] /api/voice/tool runs the same runToolStep; parity unit test; VOICE_CHECKS #1, #3; over-limit via the tool 3/3 by voice (Phase 8) |
 | 3.9 | Routing (tool choice / escalation decision) has a measurable eval | A | 35% | eval: routing accuracy over labeled turns | [x] 6 live scenarios per change; latest 18/18 (3 runs per scenario, 2026-11-24) in evals/AGENT_RESULTS.md |
 
 ## 4. Resilience & state

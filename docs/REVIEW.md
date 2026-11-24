@@ -62,3 +62,20 @@
 - **New in the Phase 7 live re-check:** the voice model refused a $900 refund from policy text in 3/3 tries instead of calling `issue_refund` (in Phase 4 it called the tool; Phase 7 didn't change the prompt, but Phase 6 added "General questions that don't need the account go straight to get_policy", a likely cause). The refusal and escalation were correct and no refund can bypass the tool, but the tool-decides chain wasn't exercised by voice. Listed in README "Known limitations".
 - **M12** (logging nits) and span names as strings remain.
 - **Session ownership** is per browser (cookie), not per user; there are no user accounts in scope. Clearing cookies means losing access to old conversations.
+
+## Phase 8: the grader's re-run deductions (2026-11-24)
+
+The grader re-ran after Phase 7 and scored about 80/100. Each item below was reproduced first, then fixed, tested, deployed (`670a399`) and re-verified live.
+
+| # | Deduction | Reproduced by | Fix | Verified | Status |
+|---|---|---|---|---|---|
+| P8-1 | A pending ledger entry left by an exception locks the invoice forever (`REFUND_IN_PROGRESS`) | `tests/ledger-expiry.test.ts` failed (3/4) before the fix | Pending entries expire after 2 min and are resolved by the next request; own key resumes (D51) | 4 unit tests and a live-Postgres test. **Live:** `tool_failure` on a $29 refund (04:14:23 UTC). Another session refunded the same invoice at 04:16:38. Ledger: one `REQUEST_EXPIRED`, one `succeeded` | **Fixed** |
+| P8-2 | Regex claim gate misses paraphrases ("Your refund is complete") | Labelled set: regex 11/20 | Model extraction plus code comparison as layer 2; chat corrects before release, voice flags (D52) | 20/20 on the set; 6 gate/runTurn tests; chat scenarios 6/6 with 0 false corrections | **Fixed** |
+| P8-3 | One unsupported side claim escalates a correct answer | — (grader's live case) | Partial grounding (D53) | 2 pipeline tests; v2 held-out unchanged (FE 1/15, ME 0/15). The grader's exact case (an SSO part of the question was unsupported) still escalates, because that claim answered the question, as the rule requires | **Fixed (by rule)** |
+| P8-4 | Voice refuses over-limit refunds without calling `issue_refund` | Live 0/3 in Phase 7 | Refund requests take precedence in the prompt and tool descriptions (D54) | **Live voice 3/3** called the tool (refused by code); chat scenarios 6/6 | **Fixed** |
+| P8-5 | Voice limits (cap, usage, `session.update`) are client-side | Docs: sideband and hangup exist, but the server never sees the call_id | Not changed; limitation documented precisely, with options (D55) | — | **Open: user decision** |
+| P8-6 | No listening / thinking / speaking indicator | — | Indicator derived from call state | The first live check found it stuck on "Thinking…" (playback spans the tool call). Fixed, then verified live: Listening → Thinking → Speaking → Thinking → Speaking → Listening | **Fixed** |
+| P8-7 | `/api/rag/search` unthrottled without `answer=1` | — | Limited in all modes (D56) | 2 route tests; live: 429 on the 31st call in the window | **Fixed** |
+| P8-8 | Contradictory eligibility wording | Phase 7 live chat | Prompt rule for listing refundable invoices | Prompt only; not separately measured | **Mitigated** |
+
+Also found while doing this: the scenario runner's `--repeat` parsing (Phase 7) dropped the model name when `--repeat` was absent. Fixed in its own commit.

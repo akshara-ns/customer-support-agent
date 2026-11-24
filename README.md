@@ -67,7 +67,7 @@ flowchart LR
 4. Write the action to the ledger.
 5. Log the call and its result.
 
-Each step streams `step_started` / `step_completed` events ("Verifying identity and account tier…", "Searching knowledge base…"). The reply streams **sentence by sentence through a claim gate**: any sentence claiming a refund, ticket, amount or ticket id that the session's tool results don't show is replaced with the truth. Events are numbered; a dropped stream resumes from the last number.
+Each step streams `step_started` / `step_completed` events ("Verifying identity and account tier…", "Searching knowledge base…"). The reply streams **sentence by sentence through a two-layer claim gate**. Layer 1 (regex, per sentence) replaces canonical false claims at once. Layer 2: from the first sentence that mentions money or tickets, the rest of the reply is held. `gpt-5.4-nano` then extracts every action the reply says was done (refund or ticket, with amount, invoice and ticket number), and **code** compares them with the session's tool log. False ones are replaced with the truth before release. Measured 20/20 on a hand-labelled set (regex alone 11/20), about $0.0001 and 0.8 s per check (`evals/ACTION_CLAIMS.md`). In voice, audio already spoken can't be rewritten, so layer 2 flags instead. Events are numbered; a dropped stream resumes from the last number.
 
 **Voice** (OpenAI Realtime over WebRTC). The server mints a 60-second ephemeral key with the instructions, tools and verified-account context; the browser connects directly.
 - **Tool calls** go to `/api/voice/tool`, which runs the **same tool step as chat**.
@@ -90,9 +90,10 @@ Each step streams `step_started` / `step_completed` events ("Verifying identity 
 1. **Retrieval gate:** top-1 cosine ≥ **0.28**.
    - Chosen on a 20-query calibration split of a 30-query labelled set. The rule: zero missed escalations for the full guardrail, then fewest false escalations, then the midpoint of the tied range.
    - **Fresh held-out set v2 (30 new queries, 2026-11-24, threshold and rule unchanged, run once):** **1/15 false escalations (7%), 0/15 missed (0%)**. By category: in-scope 0/6 FE; tier-specific 1/6 FE (a Free-tier "version history" answer without citations); out-of-scope 0/6 ME; near-miss 0/6 ME; injection 0/3 FE, 0/3 ME. Recall@5 15/15.
+   - Re-run after partial grounding (2026-11-24 04:04 UTC): FE 1/15, ME 0/15, unchanged per category. Two decisions swapped (v09 now escalated, v11 answered); a re-check showed v09 answers correctly, so this is answer-model variance.
    - History: the original held-out split (10 queries, 2026-11-24 01:00 UTC) scored **1/6 false escalations, 0/4 missed**.
    - Similarity alone can't separate near-miss questions from answerable ones (it needs t ≥ 0.58, which escalates 67% of answerable queries). So the threshold screens clear out-of-scope queries before any LLM call, and gate 2 catches near-misses. See `evals/RESULTS.md`.
-2. **Grounding gate:** the answer must cite retrieved chunk ids. Every cited id must exist in the retrieved set. A second model (`gpt-5.4-nano`, chosen by a hand-labelled sanity set: 9/9) checks each claim against the cited chunks. A missing or invalid citation, an unsupported claim, or a "not covered" answer → **escalation state** (typed decision with reason, confidence and evidence; the UI shows an escalation card).
+2. **Grounding gate:** the answer must cite retrieved chunk ids. Every cited id must exist in the retrieved set. A second model (`gpt-5.4-nano`, chosen by a hand-labelled sanity set: 9/9) checks each claim against the cited chunks. **Partial grounding:** the checker also marks whether each claim answers the question. If only side details are unsupported, those sentences are removed (with a note that some details couldn't be confirmed) and the rest is answered. Otherwise a missing or invalid citation, an unsupported claim that answers the question, or a "not covered" answer → **escalation state** (typed decision with reason, confidence and evidence; the UI shows an escalation card).
 
 ## Tools and policy (enforced in code)
 
@@ -100,7 +101,7 @@ Each step streams `step_started` / `step_completed` events ("Verifying identity 
 |---|---|
 | `verify_identity(email, 6-digit PIN)` | Strict formats (placeholders don't count as attempts). Same error whether or not the email exists. Lock after 3 failures in a conversation (opens a P1 security ticket) **and** after 5 per account across sessions. Returns tier, contract status and invoices only (no name, email or PIN). |
 | `get_policy(question)` | The guarded RAG pipeline above, filtered to the **verified** customer's tier (general sections only before verification). |
-| `issue_refund(invoice, amount, reason)` | Identity → contract active (an expired contract or suspended account opens the required billing ticket in code) → own invoice → no chargeback → not already refunded → whole cents → ≤ invoice → within window → ≤ tier limit (Free $20/7 d, Pro $200/30 d, Enterprise $1,000/60 d). **Write-ahead, idempotent ledger:** recorded before any success is acknowledged. A unique index allows one active refund per invoice, even under concurrency. |
+| `issue_refund(invoice, amount, reason)` | Identity → contract active (an expired contract or suspended account opens the required billing ticket in code) → own invoice → no chargeback → not already refunded → whole cents → ≤ invoice → within window → ≤ tier limit (Free $20/7 d, Pro $200/30 d, Enterprise $1,000/60 d). **Write-ahead, idempotent ledger:** recorded before any success is acknowledged. A unique index allows one active refund per invoice, even under concurrency. A pending entry left by a crash **expires after 2 minutes**: the next request on that invoice marks it `REQUEST_EXPIRED` and retires its key, while a request can always resume its own entry. |
 | `create_escalation_ticket(reason, summary)` | Priority from the escalation policy, response target from the tier, idempotent per session and reason. |
 
 ## Resilience, observability, production
@@ -131,10 +132,10 @@ Each step streams `step_started` / `step_completed` events ("Verifying identity 
 | `gpt-5.4-mini` for the agent | Passed 18/18 live scenario runs (6 scenarios × 3, 2026-11-24; earlier single runs 6/6). `gpt-5.4-nano` is about 3× cheaper but took unrequested actions | Higher cost per turn (~$0.002–0.005) |
 | `gpt-realtime-2.1-mini` for voice | 3.2× cheaper audio than `gpt-realtime-2.1`; fine for short answers | Slightly less natural speech |
 | Similarity threshold 0.28 + grounding gate | Measured on a split eval set; similarity alone can't separate near-misses | An extra LLM call per policy answer (~1 s) |
-| Sentence-gated streaming (claim gate) | False action claims never reach the user | First text appears per sentence, after tool steps |
+| Sentence-gated streaming with a two-layer claim gate | False action claims are replaced before the customer sees them (regex per sentence; model extraction for replies that mention money or tickets) | First text appears per sentence, after tool steps; replies that mention money or tickets release the held part ~0.8 s later |
 | One tool call per step | Deterministic ordering and simpler policy checks | More round trips (3-tool turn ≈ 5–7 s) |
 | Voice claims can't be rewritten | Audio is already spoken | Mismatches are flagged in the transcript and trace instead |
-| 3-minute voice cap (client) + server `max_output_tokens` + key TTL + per-IP/daily caps | Bounds cost on a public demo; the Realtime API has no session-duration setting | A long call must be restarted |
+| 3-minute voice cap (client) + server `max_output_tokens` + key TTL + per-IP/daily caps | Bounds cost on a public demo; the Realtime API has no session-duration setting | A long call must be restarted; the cap is not server-enforced (see Known limitations) |
 
 ## Run it
 
@@ -152,6 +153,7 @@ npm run dev                       # http://localhost:3000
 | `npm run typecheck`, `npm run lint` | Type and lint checks |
 | `npm run eval:guardrails` | Threshold sweep and held-out scoring → `evals/RESULTS.md` (~$0.03) |
 | `npm run eval:grounding` | Grounding-checker sanity set → `evals/RESULTS.md` |
+| `npm run eval:action-claims` | Model vs regex action-claim check on 20 labelled replies → `evals/ACTION_CLAIMS.md` (~$0.002) |
 | `npm run eval:agent -- gpt-5.4-mini [--repeat 3]` | Live multi-turn scenarios → `evals/AGENT_RESULTS.md` (~$0.01 per run of 6; `--repeat 3` ≈ $0.06) |
 | `npm run eval:heldout` | Fresh 30-query held-out guardrail set, run once → `evals/RESULTS.md` (~$0.02) |
 | `npm run demo:reset` | Clears demo refunds and tickets (developer machine only; asks to confirm) |
@@ -160,6 +162,7 @@ npm run dev                       # http://localhost:3000
 ## Evidence
 
 - `evals/RESULTS.md`: guardrail calibration, the fresh held-out set v2 (by category) and the grounding-checker sanity check
+- `evals/ACTION_CLAIMS.md`: the model layer of the claim gate vs the regex, with cost and latency
 - `evals/AGENT_RESULTS.md`: live agent scenarios (latest: 18/18, 3 runs per scenario, with pass rate per scenario) and run history
 - `evals/VOICE_CHECKS.md`: voice checks on the live URL
 - `evals/RESILIENCE_CHECKS.md`: failure injection checks
@@ -171,7 +174,22 @@ npm run dev                       # http://localhost:3000
 - **Voice tests used synthetic speech.** Voice checks were run with synthetic TTS speech played into the mic track, not a person on a microphone. The network-drop test was simulated.
 - **Approximate heard text.** When the server doesn't confirm truncation, the heard portion of an interrupted answer is estimated (about 15 characters per second).
 - **No user accounts.** Ownership is per browser cookie; demo data is shared, so refunds one reviewer issues affect the next (extra invoices per user mitigate this).
-- **Voice over-limit refunds are refused without calling the tool.** In the Phase 7 live re-check the voice model refused a $900 refund from policy text 3/3 times instead of calling `issue_refund` (in Phase 4 it called the tool; a Phase 6 prompt line sending general questions to get_policy is the likely cause). The answer and escalation were correct and nothing can refund outside the tool, but in voice the refusal comes from the model, not the code path. Chat calls the tool (scenario S2, 3/3).
-- **Answer wording can be inconsistent** in ways the claim gate doesn't catch (seen once: an invoice listed as eligible and, in the next clause, as already refunded).
-- **Eval sizes are small:** 30 + 30 guardrail queries and 6 scenarios × 3 runs; they show the behaviour, not a tight error bound.
+- **Voice limits are enforced by the browser and by caps on what the server hands out, not by a server connection to the call.** OpenAI documents a server-side "sideband" connection to a WebRTC call (`wss://api.openai.com/v1/realtime?call_id=…`, using the `call_id` from the SDP answer's `Location` header) and `POST /v1/realtime/calls/{call_id}/hangup`. Here the browser does the SDP exchange directly with an ephemeral key, so the server never learns the `call_id`. A modified client could therefore:
+  - send `session.update`: the docs allow any field except voice and model, including instructions and `max_output_tokens`;
+  - stay past 3 minutes;
+  - under-report usage.
+
+  What does hold server-side:
+  - keys live 60 s;
+  - 6 voice sessions per IP per 10 min, and 60 per day;
+  - `max_output_tokens` of 1,500 at minting (overridable by a modified client);
+  - every tool call goes through `/api/voice/tool`, with policy in code and 60 per IP per 10 min;
+  - transcript and usage posts are rate limited.
+
+  Making it server-enforced needs the SDP exchange moved to the server; see DECISIONS D55.
+- **Answer wording** can still be inconsistent in ways no check catches. The eligibility contradiction seen once now has a prompt rule, not a code check.
+- **Eval sizes are small.** They show the behaviour, not a tight error bound:
+  - 30 + 30 guardrail queries;
+  - 6 scenarios × 3 runs;
+  - 20 action-claim replies, of which only 6 were scored blind.
 - **Restored transcripts** show step indicators and ticket cards after a reload, but not per-turn totals (the drawer keeps the full trace).
