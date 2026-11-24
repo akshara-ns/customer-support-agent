@@ -2,6 +2,8 @@
 
 Reproduce: `npm run ingest`, then `npm run eval:grounding` and `npm run eval:guardrails` (needs `.env.local`). The sections below are rewritten by those scripts.
 
+> **Run 2 is the last fully blind held-out result: 1/6 false escalations, 0/4 missed escalations at t = 0.28.** Run 3 (the tables below) used held-out query q30 to find a checker bug, so its held-out numbers are not blind.
+
 **Run history (guardrail calibration).** The threshold rule and the 20/10 split never changed between runs.
 1. Checker `gpt-5-nano`. Chose t=0.28. Calibration: 2/12 false, 0/8 missed. Held-out: 0/6 false, 0/4 missed. Superseded: the checker failed its sanity check (6/8).
 2. Checker `gpt-5.4-nano`. Chose t=0.28. Calibration: 1/12 false, 0/8 missed. **Held-out: 1/6 false (q30), 0/4 missed. This is the last blind held-out result.**
