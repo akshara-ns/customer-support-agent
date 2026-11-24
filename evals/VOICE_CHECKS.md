@@ -43,3 +43,9 @@ Commit `0cece47` (voice hook split into transport / audio / events / tool bridge
 | Over-limit refund goes through the tool | **Pass 3/3** | Three fresh sessions (9553670b, ea74070a, 3946bb1b): "refund nine hundred dollars" → `issue_refund` called each time and refused by code. ✕ "$900 is above the $200 per-request limit for the pro tier", with escalation offered. In Phase 7 this was 0/3. |
 | Stuck pending refund can't lock an invoice | **Pass** | Session 9553670b: trace drawer fault `tool_failure`, then "refund $29" → ✕ "Refund failed; nothing was refunded" (pending entry 04:14:23). Session ea74070a at 04:16:30: "refund $29" → ✓ "Refund of $29 issued on inv_2004". Prod ledger: the 04:14:23 entry is `rejected / REQUEST_EXPIRED` (key retired, completed 04:16:38), and one `succeeded` entry. |
 | Listening / thinking / speaking indicator | **Pass after a fix** | First deploy: the indicator stuck on "Thinking…" after the answer. Playback was one buffer across the tool call, and the stop event named the first response. Now derived from state; observed live: Listening → Thinking… → Speaking → Thinking… (tool) → Speaking → Listening. |
+
+## Phase 9 voice check (2026-11-24, commit `2d75b0d`)
+
+| Check | Result | Evidence |
+|---|---|---|
+| Voice chain with interruption | **Pass** | Session 97b4f708: verify ✓, then policy (confidence 0.713) ✓, then a long sync question. Its get_policy escalated: ticket ESC-1012 (P3), card "Handed to a human", reason and confidence. The interrupt clip barged in: muted 0 ms after `speech_started` (538 ms after caller audio), server truncation, preamble marked "interrupted". Then "how long do refunds take" ✓ (0.614). |
