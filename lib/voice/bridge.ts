@@ -2,7 +2,7 @@
  * Voice ↔ backend bridge. Tool calls from the realtime model run through the SAME tool step as
  * chat (lib/agent/tool-step.ts); transcripts and usage go into the same session log and traces.
  */
-import { ACTION_VOCABULARY, ClaimGate, type ActionChecker } from "@/lib/guardrails/claims";
+import { ACTION_CLAIM_TRIGGER, ClaimGate, type ActionChecker } from "@/lib/guardrails/claims";
 import { runToolStep, toolOutputForModel } from "@/lib/tools/step";
 import { REALTIME_PRICING_PER_MTOK } from "@/lib/config";
 import { actionsForTurn, deriveState, type EventStore } from "@/lib/session/events";
@@ -119,7 +119,7 @@ export async function recordVoiceEvent(
       await deps.traces.write({ sessionId, turnId, kind: "guardrail", name: "claim_check", tokensIn: 0, tokensOut: 0, tokensCached: 0, costUsd: 0, output: { channel: "voice", flags } });
     }
     // Layer 2 (model extraction) when the regex found nothing; spoken audio can't be rewritten, so it flags.
-    if (!flags.length && deps.actionChecker && ACTION_VOCABULARY.test(ev.text)) {
+    if (!flags.length && deps.actionChecker && ACTION_CLAIM_TRIGGER.test(ev.text)) {
       try {
         const r = (await deps.actionChecker(ev.text, actions)) as Awaited<ReturnType<ActionChecker>> &
           Partial<{ model: string; tokensIn: number; tokensOut: number; costUsd: number; ms: number }>;

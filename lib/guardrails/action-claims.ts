@@ -93,6 +93,9 @@ export async function checkActionClaims(reply: string, actions: TurnActions, mod
 /** Satisfies the gate's ActionChecker type. */
 export const modelActionChecker: ActionChecker = (reply, actions) => checkActionClaims(reply, actions);
 
+/** The check sits in front of the reply: past 2 s the regex result stands and the trace flags it. */
+export const ACTION_CHECK_TIMEOUT_MS = 2000;
+
 async function extract(reply: string, actions: TurnActions, model: string): Promise<ActionClaimCheck> {
   const t0 = performance.now();
   const res = await openai().chat.completions.create({
@@ -103,7 +106,7 @@ async function extract(reply: string, actions: TurnActions, model: string): Prom
       { role: "system", content: SYSTEM },
       { role: "user", content: `<reply>\n${reply}\n</reply>` },
     ],
-  });
+  }, { timeout: ACTION_CHECK_TIMEOUT_MS, maxRetries: 0 });
   const tokensIn = res.usage?.prompt_tokens ?? 0;
   const tokensOut = res.usage?.completion_tokens ?? 0;
   const { claims } = Extracted.parse(JSON.parse(res.choices[0]?.message.content ?? "{}"));

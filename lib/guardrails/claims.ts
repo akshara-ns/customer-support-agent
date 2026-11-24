@@ -13,8 +13,12 @@ export interface TurnActions {
   tickets: Ticket[];
 }
 
-/** Only replies that talk about money or tickets need the model check. */
-export const ACTION_VOCABULARY = /\b(refund\w*|reimburs\w*|credit\w*|money|funds|charge\w*|card|ticket|escalat\w*|ESC-\d+|billing team|cancel\w*|specialist|team)\b/i;
+/**
+ * What could be a claim that something was done: a completion verb, an amount or a ticket id. Only text
+ * matching this is held for the model check (mentioning a refund without claiming one doesn't pay for it).
+ */
+export const ACTION_CLAIM_TRIGGER =
+  /\b(issued|refunded|reimbursed|created|opened|processed|credited|completed?|approved|sent|returned|escalated|handed|passed|on (its|the) way|back (on|to|in) your)\b|\$\s?\d|\bESC-\d+\b/i;
 
 /** Layer 2: returns actions the reply claims that the tool log doesn't show. */
 export type ActionChecker = (reply: string, actions: TurnActions) => Promise<{ falseClaims: { quote: string; claimed_action: string }[] }>;
@@ -93,7 +97,7 @@ export class ClaimGate {
 
   constructor(
     private readonly actions: () => TurnActions,
-    /** true: hold from the first money/ticket sentence; "all": hold the whole reply (final-reply grounding). */
+    /** true: hold from the first sentence that could claim an action; "all": hold the whole reply (final-reply grounding). */
     private readonly hold: boolean | "all" = false,
   ) {}
 
@@ -106,7 +110,7 @@ export class ClaimGate {
     for (let m = re.exec(this.buffer); m && m[0].length > 0; m = re.exec(this.buffer)) {
       if (m.index + m[0].length >= this.buffer.length && !/\s$/.test(m[0])) break;
       const checked = this.check(m[0]);
-      if (this.hold === "all" || (this.hold && (this.held.length || ACTION_VOCABULARY.test(checked)))) this.held.push(checked);
+      if (this.hold === "all" || (this.hold && (this.held.length || ACTION_CLAIM_TRIGGER.test(checked)))) this.held.push(checked);
       else out.push(checked);
       consumed = m.index + m[0].length;
     }
@@ -140,7 +144,7 @@ export class ClaimGate {
   /** The action-claim check on given sentences (already regex-checked), e.g. after final-reply grounding replaced some. */
   async settleText(held: string[], checker?: ActionChecker, onError?: (err: unknown) => void): Promise<string[]> {
     const text = held.join("");
-    if (!checker || !ACTION_VOCABULARY.test(text)) return held;
+    if (!checker || !ACTION_CLAIM_TRIGGER.test(text)) return held;
     let falseClaims: { quote: string; claimed_action: string }[];
     try {
       ({ falseClaims } = await checker(text, this.actions()));

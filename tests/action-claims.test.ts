@@ -64,10 +64,10 @@ describe("action-claim layer 2 in the gate", () => {
 
   it("if the checker fails, releases the regex-checked text and reports the error", async () => {
     const gate = new ClaimGate(() => NONE, true);
-    stream(gate, "Your refund request was noted. ");
+    stream(gate, "Your $29 refund request was noted. ");
     const onError = vi.fn();
     const out = await gate.settle(async () => Promise.reject(new Error("timeout")), onError);
-    expect(out.join("")).toBe("Your refund request was noted. ");
+    expect(out.join("")).toBe("Your $29 refund request was noted. ");
     expect(onError).toHaveBeenCalled();
   });
 });
