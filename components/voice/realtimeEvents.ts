@@ -25,6 +25,16 @@ export interface EventDeps {
 
 const uuid = () => crypto.randomUUID();
 
+/** Asks the model to continue, but only when no response is active; otherwise queues it for response.done. */
+export function requestResponse(c: VoiceRuntime, send: Send): void {
+  if (c.activeResponseId !== null) {
+    c.pendingResponseCreate = true;
+    return;
+  }
+  c.pendingResponseCreate = false;
+  send({ type: "response.create" });
+}
+
 /**
  * The indicator, derived from state rather than from single events: playback is one continuous
  * buffer across a tool call, and its `stopped` event may name an earlier response.
@@ -138,13 +148,16 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
         usage?: Record<string, unknown>;
       };
       const cancelled = response.status === "cancelled";
+      const resp = c.responses.get(response.id);
+      if (cancelled && resp) resp.interrupted = true; // its calls get a cancelled output, never run
       for (const item of response.output ?? []) {
-        if (!cancelled && item.type === "function_call" && item.call_id && item.name) {
+        if (item.type === "function_call" && item.call_id && item.name) {
           d.startCall({ callId: item.call_id, name: item.name, args: item.arguments ?? "{}", responseId: response.id });
         }
       }
-      const resp = c.responses.get(response.id);
       if (c.activeResponseId === response.id) c.activeResponseId = null;
+      // A response.create queued while this one was active can go now.
+      if (c.pendingResponseCreate && !resp?.calls.length) requestResponse(c, send);
       if (response.usage) {
         void post<{ costUsd?: number }>("/api/voice/events", {
           sessionId,
@@ -163,7 +176,9 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
           resp.toolsReturned = true;
           if (c.stopping || !c.dc) break;
           for (const o of outputs) send({ type: "conversation.item.create", item: { type: "function_call_output", call_id: o.callId, output: o.output } });
-          send({ type: "response.create" });
+          // After an interruption the caller's new turn drives the next response; otherwise continue.
+          if (!resp.interrupted) requestResponse(c, send);
+          else if (c.pendingResponseCreate) requestResponse(c, send);
           update();
         }
       }
@@ -171,6 +186,11 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
     }
     case "error": {
       const err = ev.error as { code?: string; message?: string } | undefined;
+      // Only one response may be active: retry the create when the active one finishes.
+      if (err?.code === "conversation_already_has_active_response") {
+        c.pendingResponseCreate = true;
+        break;
+      }
       // Benign races (e.g. cancelling a response that already finished) are only logged.
       if (err?.code && /cancel|not_active|truncat/i.test(err.code)) break;
       d.setError(err?.message ?? "Voice error");

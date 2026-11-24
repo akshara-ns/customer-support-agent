@@ -104,14 +104,46 @@ describe("tool bridge", () => {
     expect(sent[0]).toMatchObject({ item: { type: "function_call_output", call_id: "call1" } });
   });
 
-  it("drops a call from an interrupted response (its arguments may be half-streamed)", async () => {
+  it("never runs a call from an interrupted response, but always answers it with a cancelled output", async () => {
     const { c, posts, sent, ev } = harness();
     responding(c, "");
     c.responses.get("r1")!.interrupted = true;
     await ev({ type: "response.function_call_arguments.done", call_id: "call2", name: "issue_refund", arguments: "{", response_id: "r1" });
     await ev({ type: "response.done", response: { id: "r1", status: "cancelled" } });
     expect(posts.filter((p) => p.url === "/api/voice/tool")).toHaveLength(0);
-    expect(sent).toEqual([]);
+    expect(sent).toEqual([{ type: "conversation.item.create", item: { type: "function_call_output", call_id: "call2", output: expect.stringContaining("CANCELLED") } }]);
+  });
+
+  it("a cancelled response's calls (only in response.done) are answered as cancelled, not run", async () => {
+    const { c, posts, sent, ev } = harness();
+    responding(c, "");
+    await ev({ type: "response.done", response: { id: "r1", status: "cancelled", output: [{ type: "function_call", call_id: "call3", name: "get_policy", arguments: "{}" }] } });
+    expect(posts.filter((p) => p.url === "/api/voice/tool")).toHaveLength(0);
+    expect(sent.map((x) => x.type)).toEqual(["conversation.item.create"]);
+  });
+
+  it("queues response.create while another response is active, and sends it when that one is done", async () => {
+    const { c, sent, ev } = harness();
+    responding(c, "");
+    await ev({ type: "response.function_call_arguments.done", call_id: "call4", name: "get_policy", arguments: "{}", response_id: "r1" });
+    // The caller speaks while the tool runs: a new response r2 becomes active before r1's tool output is back.
+    const done = ev({ type: "response.done", response: { id: "r1", status: "completed" } });
+    await ev({ type: "response.created", response: { id: "r2" } });
+    await done;
+    expect(sent.map((x) => x.type)).toEqual(["conversation.item.create"]); // output sent, create queued
+    expect(c.pendingResponseCreate).toBe(true);
+    await ev({ type: "response.done", response: { id: "r2", status: "completed" } });
+    expect(sent.map((x) => x.type)).toEqual(["conversation.item.create", "response.create"]);
+  });
+
+  it("conversation_already_has_active_response: the create is retried after the active response ends", async () => {
+    const { c, sent, deps, ev } = harness();
+    await ev({ type: "response.created", response: { id: "r5" } });
+    await ev({ type: "error", error: { code: "conversation_already_has_active_response", message: "busy" } });
+    expect(deps.setError).not.toHaveBeenCalled();
+    expect(c.pendingResponseCreate).toBe(true);
+    await ev({ type: "response.done", response: { id: "r5", status: "completed" } });
+    expect(sent.map((x) => x.type)).toEqual(["response.create"]);
   });
 
   it("shows a step indicator while the tool runs, and returns a retryable failure if the server is unreachable", async () => {

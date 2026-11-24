@@ -76,6 +76,8 @@ export interface VoiceRuntime {
   autoReconnectPending: boolean;
   autoReconnectTimer: ReturnType<typeof setTimeout> | null;
   model: string;
+  /** A response.create is waiting for the active response to finish (only one may be active). */
+  pendingResponseCreate: boolean;
 }
 
 export function createRuntime(): VoiceRuntime {
@@ -103,5 +105,6 @@ export function createRuntime(): VoiceRuntime {
     autoReconnectPending: false,
     autoReconnectTimer: null,
     model: "",
+    pendingResponseCreate: false,
   };
 }

@@ -8,6 +8,12 @@ import { voiceMsg } from "@/components/voice/transcript";
 import type { Note, Post, Upsert, VoiceRuntime } from "@/components/voice/types";
 import { toolLabel, type VoiceToolResponse } from "@/lib/contracts";
 
+/** Output for a call from an interrupted or cancelled response: never run, but always answered. */
+export const CANCELLED_OUTPUT = JSON.stringify({
+  ok: false,
+  error: { code: "CANCELLED", message: "The caller interrupted, so this step was not run. Nothing was changed.", retryable: true },
+});
+
 /** What the model receives if the server can't be reached. */
 const UNREACHABLE_OUTPUT = JSON.stringify({
   ok: false,
@@ -31,9 +37,11 @@ export function startToolCall(
   if (c.handledCalls.has(callId)) return;
   c.handledCalls.add(callId);
   const resp = c.responses.get(responseId);
-  // A call from an interrupted/cancelled response may have half-streamed arguments: drop it.
+  // A call from an interrupted/cancelled response may have half-streamed arguments: don't run it, but
+  // still answer it so the conversation never holds a call without an output.
   if (resp?.interrupted) {
-    note("note", `tool ${name} dropped (response interrupted)`);
+    note("note", `tool ${name} cancelled (response interrupted)`);
+    resp.calls.push(Promise.resolve({ callId, output: CANCELLED_OUTPUT }));
     return;
   }
   const turnId = resp?.turnId ?? c.turnId;
