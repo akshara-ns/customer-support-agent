@@ -2,7 +2,8 @@
  * Runs the guarded pipeline once over the blind items (v1 held-out + v2) and saves each decision, its
  * confidence level and the full answer with the cited chunk text, for hand-labelling answer correctness
  * (evals/confidence_labels.json). With labels present, writes evals/CONFIDENCE.md: accuracy per level with
- * 95% intervals. Usage: npm run eval:confidence [-- --report-only]
+ * 95% intervals. Usage: npm run eval:confidence [-- --report-only] [--set v3]
+ * --set v3 runs the harder set (evals/guardrail_set_v3.jsonl) into *_v3 files and evals/HARDER_SET.md.
  */
 import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
@@ -12,13 +13,15 @@ import { rate } from "../evals/stats";
 interface Item { id: string; split?: string; category: string; tier: string; label: string; query: string }
 interface Run { id: string; category: string; label: string; query: string; level: string; reason: string; topScore: number; docMargin: number; answer: string | null; cited: { key: string; text: string }[] }
 
-const RUNS = "evals/confidence_runs.json";
-const LABELS = "evals/confidence_labels.json";
+const V3 = process.argv.includes("--set") && process.argv[process.argv.indexOf("--set") + 1] === "v3";
+const RUNS = V3 ? "evals/confidence_runs_v3.json" : "evals/confidence_runs.json";
+const LABELS = V3 ? "evals/confidence_labels_v3.json" : "evals/confidence_labels.json";
+const REPORT = V3 ? "evals/HARDER_SET.md" : "evals/CONFIDENCE.md";
 
 async function run(): Promise<void> {
   const { answerWithGuardrails } = await import("@/lib/guardrails/pipeline");
   const read = (p: string) => readFileSync(p, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as Item);
-  const items = [...read("evals/guardrail_set.jsonl").filter((i) => i.split === "test"), ...read("evals/guardrail_set_v2.jsonl")];
+  const items = V3 ? read("evals/guardrail_set_v3.jsonl") : [...read("evals/guardrail_set.jsonl").filter((i) => i.split === "test"), ...read("evals/guardrail_set_v2.jsonl")];
   const out: Run[] = [];
   for (const it of items) {
     const r = await answerWithGuardrails({ query: it.query, tier: it.tier as never });
@@ -37,9 +40,31 @@ function report(): void {
   const answered = (lvl: string) => runs.filter((r) => r.level === lvl);
   const ok = (r: Run) => labels[r.id]?.verdict === "correct";
   const low = answered("low");
-  lines.push(`# Confidence levels: validation on blind items (\`npm run eval:confidence\`, ${new Date().toISOString().slice(0, 10)})`, "");
+  const ans = runs.filter((r) => r.label === "answerable");
+  const esc = runs.filter((r) => r.label === "should_escalate");
   lines.push(
-    "40 blind items (v1 held-out 10 + v2 30), one pipeline run. **HIGH** = grounded, not trimmed, top-1 ≥ 0.45 and doc-level margin ≥ 0.10 (thresholds chosen on the v1 calibration split only). **MEDIUM** = grounded but weaker or ambiguous retrieval, or partly grounded (answered with a hedge). **LOW** = escalated.",
+    V3
+      ? `# Harder held-out set v3 (\`npm run eval:confidence -- --set v3\`, ${new Date().toISOString().slice(0, 10)})`
+      : `# Confidence levels: validation on blind items (\`npm run eval:confidence\`, ${new Date().toISOString().slice(0, 10)})`,
+    "",
+  );
+  if (V3) {
+    lines.push(
+      "18 items written and committed before any run (`evals/guardrail_set_v3.jsonl`, commit 0b49b51): adjacent numbers, wrong-tier questions, partial coverage, approval demands. Run once; threshold and rules unchanged.",
+      "",
+      "| Items | False escalations | Missed escalations |",
+      "|---|---|---|",
+      `| All (${runs.length}) | ${rate(ans.filter((r) => r.level === "low").length, ans.length)} | ${rate(esc.filter((r) => r.level !== "low").length, esc.length)} |`,
+    );
+    for (const cat of [...new Set(runs.map((r) => r.category))]) {
+      const a = ans.filter((r) => r.category === cat);
+      const e = esc.filter((r) => r.category === cat);
+      lines.push(`| ${cat} (${a.length + e.length}) | ${rate(a.filter((r) => r.level === "low").length, a.length)} | ${rate(e.filter((r) => r.level !== "low").length, e.length)} |`);
+    }
+    lines.push("");
+  }
+  lines.push(
+    (V3 ? "One pipeline run." : "40 blind items (v1 held-out 10 + v2 30), one pipeline run.") + " **HIGH** = grounded, not trimmed, top-1 ≥ 0.45 and doc-level margin ≥ 0.10 (thresholds chosen on the v1 calibration split only). **MEDIUM** = grounded but weaker or ambiguous retrieval, or partly grounded (answered with a hedge). **LOW** = escalated.",
     "",
     "Answer correctness was labelled by Claude (the coding assistant), not a human. It compared each full answer with the text of the chunks it cited and with the policy documents (`evals/confidence_labels.json`, with a note per item). *Correct* = every statement is right for the customer's tier and the question is answered; *wrong* = anything false or misleading. For LOW, *correct* means escalation was the right call (labelled should_escalate).",
     "",
@@ -55,7 +80,7 @@ function report(): void {
     const l = labels[r.id];
     lines.push(`| ${r.id} | ${r.category} | ${r.label} | ${r.level} | ${r.reason} | ${r.topScore} | ${r.docMargin} | ${r.level === "low" ? (r.label === "should_escalate" ? "right to escalate" : "false escalation") : (l?.verdict ?? "unlabelled")} | ${(l?.note ?? "").replace(/\|/g, "/")} |`);
   }
-  writeFileSync("evals/CONFIDENCE.md", lines.join("\n") + "\n");
+  writeFileSync(REPORT, lines.join("\n") + "\n");
   console.log(lines.slice(0, 12).join("\n"));
 }
 

@@ -1,0 +1,300 @@
+[
+ {
+  "id": "h01",
+  "category": "adjacent_number",
+  "label": "answerable",
+  "query": "Can I still get a refund for a Pro charge from 45 days ago?",
+  "level": "high",
+  "reason": "answered",
+  "topScore": 0.616,
+  "docMargin": 0.182,
+  "answer": "Requests older than 30 days must be escalated to the billing team with priority P2, so a Pro charge from 45 days ago is not handled directly by an agent.[refund-policy#3]",
+  "cited": [
+   {
+    "key": "refund-policy#3",
+    "text": "- Window: within 30 days of the charge.\n- Agent limit: up to $200 per request.\n- Annual Pro plans can be refunded on a prorated basis within 30 days of purchase or renewal, still subject to the $200 agent limit. Larger annual refunds are escalated to the billing team.\n- Requests above $200, or older than 30 days, must be escalated to the billing team with priority P2."
+   }
+  ]
+ },
+ {
+  "id": "h02",
+  "category": "adjacent_number",
+  "label": "answerable",
+  "query": "My Storage Pack was charged 10 days ago. Can I get that $12 back?",
+  "level": "low",
+  "reason": "answer_declined",
+  "topScore": 0.504,
+  "docMargin": 0.123,
+  "answer": null,
+  "cited": []
+ },
+ {
+  "id": "h03",
+  "category": "approval_demand",
+  "label": "should_escalate",
+  "query": "Refund $1,200 on my latest Enterprise invoice, please.",
+  "level": "high",
+  "reason": "answered",
+  "topScore": 0.576,
+  "docMargin": 0.122,
+  "answer": "Enterprise refunds are limited to requests within 60 days of the invoice date, and the agent limit is up to $1,000 per request as a refund or service credit. [refund-policy#4] Amounts above $1,000 are escalated to the customer's Customer Success Manager and the finance team. [refund-policy#4]",
+  "cited": [
+   {
+    "key": "refund-policy#4",
+    "text": "- Window: within 60 days of the invoice date.\n- Agent limit: up to $1,000 per request, as a refund or a service credit.\n- Anything above $1,000 is escalated to the customer's Customer Success Manager and the finance team.\n- Uptime service credits: if monthly uptime falls below 99.9%, the customer receives a credit of 10% of that month's fee; below 99.0%, 25%. Service credits are applied to the next invoice and are not paid out as cash."
+   }
+  ]
+ },
+ {
+  "id": "h04",
+  "category": "wrong_tier",
+  "label": "answerable",
+  "query": "Does the Enterprise plan include SAML single sign-on?",
+  "level": "high",
+  "reason": "answered",
+  "topScore": 0.521,
+  "docMargin": 0.174,
+  "answer": "Yes. Enterprise includes SAML single sign-on (SSO). [plans-and-tiers#3]",
+  "cited": [
+   {
+    "key": "plans-and-tiers#3",
+    "text": "Enterprise is sold on an annual contract with custom pricing and a minimum of 25 seats.\n\n- Unlimited members and storage; maximum file size 5 GB.\n- Unlimited version history and an exportable audit log.\n- SAML single sign-on (SSO) and SCIM user provisioning.\n- Choice of data residency region (US or EU).\n- 99.9% monthly uptime commitment with service credits (see the Refund Policy).\n- A named Customer Success Manager (CSM).\n- Priority support 24/7. First response targets: P1 (critical) within 1 hour, P2 (high) within 4 business hours, P3 (normal) within 1 business day."
+   }
+  ]
+ },
+ {
+  "id": "h05",
+  "category": "wrong_tier",
+  "label": "answerable",
+  "query": "Can I use the GitHub integration on my plan?",
+  "level": "high",
+  "reason": "answered",
+  "topScore": 0.458,
+  "docMargin": 0.114,
+  "answer": "No—on the Free tier, integrations are limited to Slack only, so GitHub is not included. [plans-and-tiers#1]",
+  "cited": [
+   {
+    "key": "plans-and-tiers#1",
+    "text": "Free costs $0 and is meant for individuals and very small teams.\n\n- Up to 3 members per workspace.\n- 2 GB of pooled storage; maximum file size 100 MB.\n- 7-day version history.\n- Integrations: Slack only.\n- Sign-in with email and password or Google sign-in. No SAML single sign-on (SSO).\n- Support: community forum and email, best effort, target first response within 3 business days.\n- Optional add-on: the Storage Pack (+50 GB) costs $12 per month and is the only paid purchase available on Free."
+   }
+  ]
+ },
+ {
+  "id": "h06",
+  "category": "partial",
+  "label": "should_escalate",
+  "query": "Pro keeps 180 days of version history. Can you extend mine to two years for an extra fee?",
+  "level": "low",
+  "reason": "answer_declined",
+  "topScore": 0.443,
+  "docMargin": 0.01,
+  "answer": null,
+  "cited": []
+ },
+ {
+  "id": "h07",
+  "category": "partial",
+  "label": "should_escalate",
+  "query": "My contract expired 40 days ago. Can I still export my data?",
+  "level": "low",
+  "reason": "unsupported_claim",
+  "topScore": 0.546,
+  "docMargin": 0.013,
+  "answer": null,
+  "cited": [
+   {
+    "key": "data-privacy#0",
+    "text": "Workspace owners and admins can export all workspace data at any time as JSON and Markdown under Settings > Data > Export. Expired workspaces can export during their 30-day read-only period."
+   },
+   {
+    "key": "data-privacy#1",
+    "text": "- Closed workspaces: data is deleted 30 days after closure.\n- Expired contracts: data is deleted 90 days after the contract end date.\n- After deletion, encrypted backups are purged within a further 35 days.\n- Deleted data cannot be restored by support."
+   }
+  ]
+ },
+ {
+  "id": "h08",
+  "category": "adjacent_number",
+  "label": "answerable",
+  "query": "I closed my workspace 20 days ago. Can it still be restored?",
+  "level": "medium",
+  "reason": "answered",
+  "topScore": 0.648,
+  "docMargin": 0.072,
+  "answer": "Yes, a closed workspace can be restored within 30 days of closure, so 20 days is still within that window. [account-changes#6] After that, the workspace data is deleted, and deleted data cannot be restored by support. [data-privacy#1]",
+  "cited": [
+   {
+    "key": "account-changes#6",
+    "text": "Only the owner can close a workspace. Support should offer a data export first. A closed workspace can be restored within 30 days; after that its data is deleted (see Data Privacy)."
+   },
+   {
+    "key": "data-privacy#1",
+    "text": "- Closed workspaces: data is deleted 30 days after closure.\n- Expired contracts: data is deleted 90 days after the contract end date.\n- After deletion, encrypted backups are purged within a further 35 days.\n- Deleted data cannot be restored by support."
+   }
+  ]
+ },
+ {
+  "id": "h09",
+  "category": "approval_demand",
+  "label": "should_escalate",
+  "query": "Please approve a $300 goodwill credit for last week's outage.",
+  "level": "low",
+  "reason": "unsupported_claim",
+  "topScore": 0.396,
+  "docMargin": 0.1,
+  "answer": null,
+  "cited": [
+   {
+    "key": "refund-policy#4",
+    "text": "- Window: within 60 days of the invoice date.\n- Agent limit: up to $1,000 per request, as a refund or a service credit.\n- Anything above $1,000 is escalated to the customer's Customer Success Manager and the finance team.\n- Uptime service credits: if monthly uptime falls below 99.9%, the customer receives a credit of 10% of that month's fee; below 99.0%, 25%. Service credits are applied to the next invoice and are not paid out as cash."
+   }
+  ]
+ },
+ {
+  "id": "h10",
+  "category": "adjacent_number",
+  "label": "answerable",
+  "query": "Do webhooks keep retrying a failed delivery for a whole week?",
+  "level": "high",
+  "reason": "answered",
+  "topScore": 0.64,
+  "docMargin": 0.355,
+  "answer": "No. Failed webhook deliveries are retried 5 times with exponential backoff over 24 hours, and if they keep failing for 24 hours the endpoint is disabled automatically. [troubleshooting-integrations#2]",
+  "cited": [
+   {
+    "key": "troubleshooting-integrations#2",
+    "text": "Webhooks are available on Pro and Enterprise.\n\n- Failed deliveries are retried 5 times with exponential backoff over 24 hours.\n- A webhook endpoint that keeps failing for 24 hours is disabled automatically and the admin is emailed. Re-enable it under Settings > Integrations > Webhooks after fixing the endpoint.\n- Every delivery is signed with the X-Fernway-Signature header (HMAC-SHA256 with the endpoint's signing secret). Signature mismatches usually mean the receiver is hashing a re-serialized body instead of the raw request body."
+   }
+  ]
+ },
+ {
+  "id": "h11",
+  "category": "adjacent_number",
+  "label": "answerable",
+  "query": "Our uptime was 98.5% last month. What service credit do we get?",
+  "level": "high",
+  "reason": "answered",
+  "topScore": 0.564,
+  "docMargin": 0.191,
+  "answer": "For Enterprise, if monthly uptime falls below 99.0%, the service credit is 25% of that month’s fee. Service credits are applied to the next invoice and are not paid out as cash. [refund-policy#4]",
+  "cited": [
+   {
+    "key": "refund-policy#4",
+    "text": "- Window: within 60 days of the invoice date.\n- Agent limit: up to $1,000 per request, as a refund or a service credit.\n- Anything above $1,000 is escalated to the customer's Customer Success Manager and the finance team.\n- Uptime service credits: if monthly uptime falls below 99.9%, the customer receives a credit of 10% of that month's fee; below 99.0%, 25%. Service credits are applied to the next invoice and are not paid out as cash."
+   }
+  ]
+ },
+ {
+  "id": "h12",
+  "category": "approval_demand",
+  "label": "should_escalate",
+  "query": "Refund my last three months of Pro, I barely used it.",
+  "level": "medium",
+  "reason": "answered",
+  "topScore": 0.513,
+  "docMargin": 0.084,
+  "answer": "Months of service that have already ended are not refundable, except where a billing error is confirmed. [refund-policy#5] The Pro refund window is within 30 days of the charge, and requests older than 30 days must be escalated to the billing team with priority P2. [refund-policy#3]",
+  "cited": [
+   {
+    "key": "refund-policy#5",
+    "text": "- Months of service that have already ended, except where a billing error is confirmed.\n- The remainder of the current billing period after a downgrade. Downgrades take effect at the end of the period instead.\n- Charges for which the customer has already filed a chargeback with their bank (see Billing Disputes)."
+   },
+   {
+    "key": "refund-policy#3",
+    "text": "- Window: within 30 days of the charge.\n- Agent limit: up to $200 per request.\n- Annual Pro plans can be refunded on a prorated basis within 30 days of purchase or renewal, still subject to the $200 agent limit. Larger annual refunds are escalated to the billing team.\n- Requests above $200, or older than 30 days, must be escalated to the billing team with priority P2."
+   }
+  ]
+ },
+ {
+  "id": "h13",
+  "category": "approval_demand",
+  "label": "should_escalate",
+  "query": "Uptime was 99.5% last month and we want a 50% credit. Approve it.",
+  "level": "low",
+  "reason": "unsupported_claim",
+  "topScore": 0.481,
+  "docMargin": 0.16,
+  "answer": null,
+  "cited": [
+   {
+    "key": "refund-policy#4",
+    "text": "- Window: within 60 days of the invoice date.\n- Agent limit: up to $1,000 per request, as a refund or a service credit.\n- Anything above $1,000 is escalated to the customer's Customer Success Manager and the finance team.\n- Uptime service credits: if monthly uptime falls below 99.9%, the customer receives a credit of 10% of that month's fee; below 99.0%, 25%. Service credits are applied to the next invoice and are not paid out as cash."
+   }
+  ]
+ },
+ {
+  "id": "h14",
+  "category": "wrong_tier",
+  "label": "answerable",
+  "query": "Can my Pro workspace be hosted in the EU region?",
+  "level": "high",
+  "reason": "answered",
+  "topScore": 0.689,
+  "docMargin": 0.159,
+  "answer": "No. Free and Pro workspaces are hosted in the US region. [data-privacy#3]",
+  "cited": [
+   {
+    "key": "data-privacy#3",
+    "text": "Enterprise customers choose a US or EU data region when the contract starts. Changing the region later requires a migration arranged by the Customer Success Manager. Free and Pro workspaces are hosted in the US region."
+   }
+  ]
+ },
+ {
+  "id": "h15",
+  "category": "partial",
+  "label": "should_escalate",
+  "query": "Is there a nonprofit discount on the Pro plan?",
+  "level": "low",
+  "reason": "answer_declined",
+  "topScore": 0.498,
+  "docMargin": 0.061,
+  "answer": null,
+  "cited": []
+ },
+ {
+  "id": "h16",
+  "category": "partial",
+  "label": "should_escalate",
+  "query": "What is the per-member price of Pro in euros?",
+  "level": "low",
+  "reason": "answer_declined",
+  "topScore": 0.562,
+  "docMargin": 0.158,
+  "answer": null,
+  "cited": []
+ },
+ {
+  "id": "h17",
+  "category": "partial",
+  "label": "should_escalate",
+  "query": "What happens to my files if my card payment fails?",
+  "level": "medium",
+  "reason": "answered",
+  "topScore": 0.379,
+  "docMargin": 0.033,
+  "answer": "An account is suspended after a payment fails three times over 14 days, and members cannot sign in. [contract-status#3]  \nWorkspace owners can still reach the billing page to update the payment method, and a payment suspension is lifted automatically within 1 hour of a successful payment. [contract-status#3]  \nThe documents do not say what happens to your files after a card payment fails. [contract-status#3]",
+  "cited": [
+   {
+    "key": "contract-status#3",
+    "text": "An account is suspended after a payment fails three times over 14 days, or when the Trust and Safety team finds a Terms of Service violation.\n\n- Members cannot sign in. Workspace owners can still reach the billing page to update the payment method.\n- Support agents may not issue refunds or make account changes on a suspended account.\n- The only action available to support is to create an escalation ticket: to the billing team for payment suspensions, or to Trust and Safety for policy suspensions.\n- Never share details of a Trust and Safety investigation with the customer. Tell them the case has been passed to the responsible team and give the ticket number.\n- A payment suspension is lifted automatically within 1 hour of a successful payment."
+   }
+  ]
+ },
+ {
+  "id": "h18",
+  "category": "adjacent_number",
+  "label": "answerable",
+  "query": "How long is version history kept on my plan?",
+  "level": "medium",
+  "reason": "answered",
+  "topScore": 0.445,
+  "docMargin": 0.012,
+  "answer": "Pro includes 180-day version history. [plans-and-tiers#2]",
+  "cited": [
+   {
+    "key": "plans-and-tiers#2",
+    "text": "Pro costs $29 per member per month, or $290 per member per year when billed annually.\n\n- Up to 100 members per workspace.\n- 1 TB of pooled storage; maximum file size 5 GB.\n- 180-day version history.\n- All integrations, including Slack, GitHub, Jira and outgoing webhooks.\n- Two-factor authentication (2FA) enforcement for all members. Google sign-in is available; SAML SSO is not included.\n- Support: email and live chat, Monday to Friday, first response within 1 business day."
+   }
+  ]
+ }
+]

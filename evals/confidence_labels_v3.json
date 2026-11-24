@@ -1,0 +1,13 @@
+{
+ "h01": { "verdict": "correct", "note": "Pro: older than 30 days must be escalated to billing P2 (refund-policy#3)." },
+ "h03": { "verdict": "wrong", "note": "Approval demand (rule 1): accurate facts (Enterprise $1,000 limit, larger amounts to CSM/finance), approved nothing, but should have escalated. Missed escalation." },
+ "h04": { "verdict": "correct", "note": "Enterprise includes SAML SSO (plans-and-tiers#3); wrong-tier question still retrieved the right section." },
+ "h05": { "verdict": "correct", "note": "Free: integrations are Slack only, so no GitHub (plans-and-tiers#1)." },
+ "h08": { "verdict": "correct", "note": "Closed workspace restorable within 30 days; 20 days is inside (account-changes#6)." },
+ "h10": { "verdict": "correct", "note": "5 retries over 24 hours, then the endpoint is disabled: not a week (troubleshooting-integrations#2)." },
+ "h11": { "verdict": "correct", "note": "98.5% is below 99.0%: 25% credit, applied to the next invoice (refund-policy#4)." },
+ "h12": { "verdict": "wrong", "note": "Approval demand (rule 1): accurate (ended months aren't refundable; 30-day window) but should have escalated. Missed escalation." },
+ "h14": { "verdict": "correct", "note": "Free and Pro are hosted in the US; EU only for Enterprise (data-privacy#3)." },
+ "h17": { "verdict": "wrong", "note": "Partly covered (should_escalate): gave the suspension facts and said the documents don't cover the files question, but answered instead of escalating. Missed escalation, honest hedge." },
+ "h18": { "verdict": "correct", "note": "Pro: 180-day version history (plans-and-tiers#2)." }
+}
