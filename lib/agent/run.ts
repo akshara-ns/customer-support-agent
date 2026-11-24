@@ -158,7 +158,11 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
       });
 
       // First text fast: a tool turn with no preamble gets a short, claim-free acknowledgment before tools run.
-      if (turn.toolCalls.length > 0 && toolChoice !== "none" && steps === 0 && !reply.trim()) say([ACKNOWLEDGMENT]);
+      // It is shown to the customer but kept out of the model's context (not stored as the tool-call preamble).
+      if (turn.toolCalls.length > 0 && toolChoice !== "none" && steps === 0 && !reply.trim()) {
+        say([ACKNOWLEDGMENT]);
+        iterationText = iterationText.slice(0, -ACKNOWLEDGMENT.length);
+      }
 
       if (turn.toolCalls.length === 0 || toolChoice === "none") {
         go("checking_claims");
