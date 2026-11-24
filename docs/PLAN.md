@@ -22,4 +22,4 @@ Any block that runs over is reported immediately (see CLAUDE.md).
 ## Time log
 | Block | Planned | Started | Ended | Notes |
 |---|---|---|---|---|
-| 0–1 Scaffold + deploy | 60 min | 2026-11-23 | | |
+| 0–1 Scaffold + deploy | 60 min | 2026-11-23 19:13 | 2026-11-23 19:32 | ~20 min wall clock; on time |

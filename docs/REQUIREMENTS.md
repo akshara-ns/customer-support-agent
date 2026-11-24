@@ -4,6 +4,8 @@ Source: BRIEF.md. Rubric weights: **A** Agentic architecture & tools 35% · **V*
 
 Demo kinds: **test** (unit/integration test in repo) · **eval** (scored script over a labeled set) · **UI** (visible UI state) · **Loom** (moment in the walkthrough video).
 
+Live URL: https://customer-support-agent-sable-two.vercel.app
+
 Status: `[ ]` not started · `[~]` in progress · `[x]` done and demonstrated.
 
 ## 1. Dual-interface UI
@@ -25,7 +27,7 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done and demonstrated.
 
 | # | Requirement | Cat | Wt | How we demonstrate it | Status |
 |---|---|---|---|---|---|
-| 2.1 | Node.js backend connected to a vector DB (Neon pgvector) | C | 25% | /api/health checks DB; test: retrieval query | [~] |
+| 2.1 | Node.js backend connected to a vector DB (Neon pgvector) | C | 25% | /api/health checks DB; test: retrieval query | [~] Neon pgvector 0.8.7 connected; retrieval pending |
 | 2.2 | Custom document chunking over sample support policies | A/C | 35%/25% | test: chunker on fixtures; README explains choice | [ ] |
 | 2.3 | Sample support policy corpus (refunds, tiers, troubleshooting) | A | 35% | files in repo; ingest script output | [ ] |
 | 2.4 | Explicit similarity threshold, calibrated on a labeled eval set | A | 35% | eval: precision/recall at chosen threshold printed | [ ] |
@@ -56,7 +58,7 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done and demonstrated.
 | 4.3 | Graceful handling of simulated tool failure mid-conversation | P/A | 15%/35% | UI: failed step chip + recovery; Loom (fault-injection toggle) | [ ] |
 | 4.4 | Consistent multi-turn session memory across text and voice | A/V | 35%/25% | Loom: switch chat→voice, agent remembers; DB rows share session_id | [ ] |
 | 4.5 | Rate limiting on our own API | P | 15% | test/curl: 429 after N requests; UI message | [ ] |
-| 4.6 | Deployment stability | P | 15% | live URL; /api/health ok | [~] |
+| 4.6 | Deployment stability | P | 15% | live URL; /api/health ok | [~] live; /api/health 200 ok on Vercel prod (2026-11-23) |
 
 ## 5. Code quality
 
@@ -70,8 +72,8 @@ Status: `[ ]` not started · `[~]` in progress · `[x]` done and demonstrated.
 
 | # | Requirement | Cat | Wt | How we demonstrate it | Status |
 |---|---|---|---|---|---|
-| 6.1 | Public GitHub repo with full source | C | 25% | repo URL | [ ] |
-| 6.2 | `.env.example` | P | 15% | file in repo | [~] |
+| 6.1 | Public GitHub repo with full source | C | 25% | repo URL | [x] github.com/akshara-ns/customer-support-agent (public) |
+| 6.2 | `.env.example` | P | 15% | file in repo | [x] |
 | 6.3 | README: architecture, chunking choices, key trade-offs | C/P | 25%/15% | README.md (trade-offs from DECISIONS.md) | [ ] |
-| 6.4 | Live demo link (Vercel) | P | 15% | URL | [ ] |
+| 6.4 | Live demo link (Vercel) | P | 15% | URL | [x] https://customer-support-agent-sable-two.vercel.app |
 | 6.5 | Loom 3–5 min: live chat, voice incl. interruption, multi-step tools, RAG + guardrail walkthrough, clear communication | V/P | 25%/15% | Loom link in README | [ ] |
