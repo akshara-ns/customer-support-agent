@@ -20,7 +20,7 @@ import { runToolStep } from "@/lib/tools/step";
 import { TOOL_DEFINITIONS } from "@/lib/tools/registry";
 import { REFUND_INTENT } from "@/lib/tools/policy";
 import type { ToolDeps } from "@/lib/tools/stores";
-import type { ToolContext } from "@/lib/tools/types";
+import type { ToolContext, ToolOutcome } from "@/lib/tools/types";
 import type { AgentEvent, Channel } from "@/lib/types";
 
 export const MAX_TOOL_STEPS = 6;
@@ -116,6 +116,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
         })
     : undefined;
   const toolsCalled: string[] = [];
+  /** The last get_policy outcome this turn (final-reply grounding uses it for escalation handoffs). */
+  let lastPolicy: ToolOutcome | null = null;
   let reply = "";
   let iterationText = "";
   let escalated = false;
@@ -183,6 +185,12 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
       trace.mark("guardrail", "final_reply_replaced", { unsupported: check.unsupported });
       iterationText = "";
       return [replyForPolicyOutcome(outcome)];
+    }
+    // The lookup itself escalated (or needs verification): say the deterministic handoff, never a trimmed one.
+    if (lastPolicy && lastPolicy.name === "get_policy" && lastPolicy.result.ok && lastPolicy.result.data.status !== "answered") {
+      trace.mark("guardrail", "final_reply_replaced", { unsupported: check.unsupported });
+      iterationText = "";
+      return [replyForPolicyOutcome(lastPolicy)];
     }
     const trimmed = dropUnsupported(text, check.unsupported);
     trace.mark("guardrail", "final_reply_trimmed", { unsupported: check.unsupported, removed: trimmed?.removed ?? "all" });
@@ -273,6 +281,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
           trace,
         }));
 
+        if (outcome.name === "get_policy") lastPolicy = outcome;
         // Session state and per-turn facts the claim gate checks against.
         if (outcome.effects.verified) ctx.customer = outcome.effects.verified;
         if (outcome.effects.failedVerification) ctx.failedVerifications++;

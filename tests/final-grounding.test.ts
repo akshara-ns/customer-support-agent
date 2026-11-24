@@ -99,4 +99,16 @@ describe("final-reply grounding", () => {
     expect(shown).toContain("You're verified.");
     expect(r.trace.spans.map((x) => x.name)).toContain("final_grounding_advisory");
   });
+
+  it("the model's own lookup escalated: an ungrounded reply becomes the handoff with the ticket number (not a trimmed one)", async () => {
+    const s = session();
+    await s.turn("omar@example.com 715204", [VERIFY, text("You're verified. ")]);
+    const { r, shown } = await s.turn("Can you recommend a good stock to buy?", [
+      tool("get_policy", { question: "recommend a stock" }),
+      text("I've passed your stock question on. They should respond within 1 business day. "),
+    ]);
+    expect(r.state).toBe("escalated");
+    expect(shown).toMatch(/handed it to a person: ticket ESC-\d+ \(P3\), first response within 1 business day/);
+    expect(shown).not.toContain("couldn't confirm anything beyond");
+  });
 });
