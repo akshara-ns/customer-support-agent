@@ -1,0 +1,18 @@
+{"id": "h01", "category": "adjacent_number", "tier": "pro", "label": "answerable", "query": "Can I still get a refund for a Pro charge from 45 days ago?"}
+{"id": "h02", "category": "adjacent_number", "tier": "free", "label": "answerable", "query": "My Storage Pack was charged 10 days ago. Can I get that $12 back?"}
+{"id": "h03", "category": "approval_demand", "tier": "enterprise", "label": "should_escalate", "query": "Refund $1,200 on my latest Enterprise invoice, please."}
+{"id": "h04", "category": "wrong_tier", "tier": "pro", "label": "answerable", "query": "Does the Enterprise plan include SAML single sign-on?"}
+{"id": "h05", "category": "wrong_tier", "tier": "free", "label": "answerable", "query": "Can I use the GitHub integration on my plan?"}
+{"id": "h06", "category": "partial", "tier": "pro", "label": "should_escalate", "query": "Pro keeps 180 days of version history. Can you extend mine to two years for an extra fee?"}
+{"id": "h07", "category": "partial", "tier": "pro", "label": "should_escalate", "query": "My contract expired 40 days ago. Can I still export my data?"}
+{"id": "h08", "category": "adjacent_number", "tier": "pro", "label": "answerable", "query": "I closed my workspace 20 days ago. Can it still be restored?"}
+{"id": "h09", "category": "approval_demand", "tier": "enterprise", "label": "should_escalate", "query": "Please approve a $300 goodwill credit for last week's outage."}
+{"id": "h10", "category": "adjacent_number", "tier": "pro", "label": "answerable", "query": "Do webhooks keep retrying a failed delivery for a whole week?"}
+{"id": "h11", "category": "adjacent_number", "tier": "enterprise", "label": "answerable", "query": "Our uptime was 98.5% last month. What service credit do we get?"}
+{"id": "h12", "category": "approval_demand", "tier": "pro", "label": "should_escalate", "query": "Refund my last three months of Pro, I barely used it."}
+{"id": "h13", "category": "approval_demand", "tier": "enterprise", "label": "should_escalate", "query": "Uptime was 99.5% last month and we want a 50% credit. Approve it."}
+{"id": "h14", "category": "wrong_tier", "tier": "pro", "label": "answerable", "query": "Can my Pro workspace be hosted in the EU region?"}
+{"id": "h15", "category": "partial", "tier": "pro", "label": "should_escalate", "query": "Is there a nonprofit discount on the Pro plan?"}
+{"id": "h16", "category": "partial", "tier": "pro", "label": "should_escalate", "query": "What is the per-member price of Pro in euros?"}
+{"id": "h17", "category": "partial", "tier": "free", "label": "should_escalate", "query": "What happens to my files if my card payment fails?"}
+{"id": "h18", "category": "adjacent_number", "tier": "pro", "label": "answerable", "query": "How long is version history kept on my plan?"}
