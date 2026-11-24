@@ -47,4 +47,9 @@ export interface ToolContext {
   failedVerifications: number;
   /** Turn trace, so tools that call models (get_policy) add their spans and cost to it. */
   trace?: Trace;
+  /**
+   * Did a customer message in this conversation ask for a refund? Set by the chat turn and the voice
+   * bridge; issue_refund refuses when it is false. Undefined (unit tests of the tool alone) skips the check.
+   */
+  refundRequested?: boolean;
 }

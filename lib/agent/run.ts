@@ -14,6 +14,7 @@ import { actionsForTurn, buildContext, deriveState, type EventStore } from "@/li
 import { redactText } from "@/lib/observability/redact";
 import { runToolStep } from "@/lib/tools/step";
 import { TOOL_DEFINITIONS } from "@/lib/tools/registry";
+import { REFUND_INTENT } from "@/lib/tools/policy";
 import type { ToolDeps } from "@/lib/tools/stores";
 import type { ToolContext } from "@/lib/tools/types";
 import type { AgentEvent, Channel } from "@/lib/types";
@@ -78,6 +79,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
     customer: prior.customer,
     failedVerifications: prior.failedVerifications,
     trace,
+    refundRequested:
+      REFUND_INTENT.test(input.message) || history.some(({ event }) => event.type === "user_message" && REFUND_INTENT.test(event.text)),
   };
   // The log keeps a redacted copy (no PIN, masked email); the model sees the raw text for this turn only.
   await log({ type: "user_message", text: redactText(input.message) });

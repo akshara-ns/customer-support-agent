@@ -176,6 +176,10 @@ export async function issueRefund(
 ): Promise<ToolResult<RefundReceipt>> {
   const customer = ctx.customer;
   if (!customer) return fail({ code: "NOT_VERIFIED", message: "Identity must be verified before a refund.", retryable: false });
+  // A refund is only ever issued because the customer asked for one (never on the model's initiative).
+  if (ctx.refundRequested === false) {
+    return fail({ code: "REFUND_NOT_REQUESTED", message: "The customer hasn't asked for a refund in this conversation. Ask what they need instead.", retryable: false });
+  }
 
   const record = deps.customers.get(customer.customerId);
   const invoice = record?.invoices.find((i) => i.invoiceId === input.invoice_id);

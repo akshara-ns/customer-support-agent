@@ -27,6 +27,8 @@ export async function runVoiceTool(
   deps: { events: EventStore; tools: ToolDeps; traceSink?: (trace: Trace, channel: "voice") => Promise<void> },
 ): Promise<VoiceToolResponse> {
   await deps.events.ensureSession(req.sessionId);
+  // No refundRequested check in voice: the caller's transcript is posted asynchronously and can arrive
+  // after the tool call, so the check would race (refusing real spoken requests). Chat enforces it.
   const state = deriveState(await deps.events.list(req.sessionId));
   const emitted: AgentEvent[] = [];
   const trace = new Trace(req.turnId);

@@ -25,6 +25,7 @@ export type TicketReason = (typeof TICKET_REASONS)[number];
 export type ToolErrorCode =
   | "INVALID_INPUT"
   | "NOT_VERIFIED"
+  | "REFUND_NOT_REQUESTED"
   | "VERIFICATION_FAILED"
   | "IDENTITY_LOCKED"
   | "CONTRACT_NOT_ACTIVE"
