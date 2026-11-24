@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { applyAgentEvent, type ChatMessage } from "@/components/agentEvents";
+import { createSeqTracker, readSse } from "@/components/sse";
 import type { ClientFault, TranscriptResponse } from "@/lib/contracts";
 import type { ErrorCode, SseEvent } from "@/lib/types";
 
@@ -34,28 +35,6 @@ const sessionStore = {
   },
 };
 
-/** Parses `data: {...}` frames from an SSE byte stream. */
-async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<SseEvent> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buffer.indexOf("\n\n")) >= 0) {
-      const frame = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
-      const data = frame
-        .split("\n")
-        .filter((l) => l.startsWith("data: "))
-        .map((l) => l.slice(6))
-        .join("\n");
-      if (data) yield JSON.parse(data) as SseEvent;
-    }
-  }
-}
 
 export function useChat() {
   const sessionId = useSyncExternalStore(sessionStore.subscribe, sessionStore.get, () => null);
@@ -108,11 +87,10 @@ export function useChat() {
       // Client-side demo fault: cut the stream mid-turn to exercise resume (not sent to the server).
       const dropStream = simulate === "stream_drop";
       const serverFault = dropStream ? null : simulate;
-      let lastSeq = 0;
+      const seen = createSeqTracker();
       let gotDone = false;
       const handle = (e: SseEvent) => {
-        if (e.seq <= lastSeq) return; // replayed event we already have: no duplicates
-        lastSeq = e.seq;
+        if (!seen.accept(e)) return; // replayed event we already have: no duplicates
         switch (e.type) {
           case "token":
             update(assistantId, (m) => ({ ...m, text: m.text + e.text, retrying: undefined, reconnecting: undefined }));
@@ -162,7 +140,7 @@ export function useChat() {
         }
         // Stream ended without `done`: reconnect with the last event number; the server replays the rest.
         for (let attempt = 1; !gotDone && streamId && attempt <= 3; attempt++) {
-          const after = lastSeq;
+          const after = seen.last;
           update(assistantId, (m) => ({ ...m, reconnecting: { attempt, after } }));
           try {
             const r = await fetch(`/api/chat/stream?streamId=${streamId}&after=${after}`, { cache: "no-store" });
