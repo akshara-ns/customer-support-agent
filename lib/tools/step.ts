@@ -32,12 +32,27 @@ export interface ToolStepArgs {
   trace?: Trace;
 }
 
+/**
+ * Customer-facing step text for errors whose message is written for the agent (what to ask or call next).
+ * Policy refusals ("$900 is above the $200 per-request limit…") are already customer-facing and pass through.
+ */
+const CUSTOMER_TEXT: Partial<Record<string, (message: string) => string>> = {
+  INVOICE_AMBIGUOUS: () => "Which invoice? Several are eligible; nothing was refunded",
+  INVOICE_MISMATCH: () => "Not the invoice you asked about; nothing was refunded",
+  REFUND_NOT_REQUESTED: () => "No refund was requested; nothing was refunded",
+  REQUEST_EXPIRED: () => "An earlier refund request expired; nothing was refunded",
+  VERIFICATION_FAILED: (m) => `Email and PIN didn't match${m.match(/\(attempt \d+ of \d+\)/)?.[0] ? ` ${m.match(/\(attempt \d+ of \d+\)/)![0]}` : ""}`,
+  INVALID_INPUT: () => "Couldn't read that request; nothing was changed",
+  NOT_VERIFIED: () => "Identity not verified yet; nothing was changed",
+};
+
 export function summarizeOutcome(o: ToolOutcome): string {
   if (!o.result.ok) {
     // The UI gets customer-facing text; the model-facing message (with retry instructions) stays internal.
     if (o.result.error.code === "TOOL_FAILURE") return o.name === "issue_refund" ? "Refund failed; nothing was refunded" : "Step failed; nothing was changed";
     if (o.result.error.code === "SERVICE_UNAVAILABLE") return "The knowledge base is temporarily unavailable";
-    return o.result.error.message;
+    const text = CUSTOMER_TEXT[o.result.error.code]?.(o.result.error.message);
+    return text ?? o.result.error.message;
   }
   switch (o.name) {
     case "verify_identity":
