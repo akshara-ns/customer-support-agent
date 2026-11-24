@@ -25,6 +25,7 @@ export interface SpanHandle {
 export class Trace {
   readonly turnId: string;
   readonly spans: TraceSpan[] = [];
+  private readonly t0 = performance.now();
 
   constructor(turnId: string = crypto.randomUUID()) {
     this.turnId = turnId;
@@ -65,15 +66,30 @@ export class Trace {
     }
   }
 
+  /** Records an instantaneous span (state transitions, claim-check notes). */
+  mark(kind: SpanKind, name: string, output?: unknown): void {
+    this.spans.push({
+      id: crypto.randomUUID(),
+      turnId: this.turnId,
+      kind,
+      name,
+      status: "ok",
+      startedAt: new Date().toISOString(),
+      durationMs: 0,
+      output,
+    });
+  }
+
+  /** Wall-clock duration since the trace started (spans nest, so they are not summed); tokens and cost are summed. */
   totals(): { durationMs: number; tokensIn: number; tokensOut: number; costUsd: number } {
     return this.spans.reduce(
       (acc, s) => ({
-        durationMs: acc.durationMs + s.durationMs,
+        durationMs: acc.durationMs,
         tokensIn: acc.tokensIn + (s.tokensIn ?? 0),
         tokensOut: acc.tokensOut + (s.tokensOut ?? 0),
         costUsd: acc.costUsd + (s.costUsd ?? 0),
       }),
-      { durationMs: 0, tokensIn: 0, tokensOut: 0, costUsd: 0 },
+      { durationMs: Math.round(performance.now() - this.t0), tokensIn: 0, tokensOut: 0, costUsd: 0 },
     );
   }
 }

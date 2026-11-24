@@ -1,0 +1,105 @@
+/**
+ * The session event log: one append-only, numbered sequence per session, shared by chat
+ * and voice. Agent context and verified-identity state are rebuilt from it every turn.
+ */
+import type { ToolError, Ticket, ToolResult, VerifiedCustomer } from "@/lib/tools/types";
+import type { VerifyEffects } from "@/lib/tools/tools";
+import type { Channel } from "@/lib/types";
+
+export type SessionEvent =
+  | { type: "user_message"; text: string }
+  | { type: "assistant_message"; text: string; corrections?: string[] }
+  | { type: "tool_call"; toolCallId: string; name: string; arguments: string; content?: string }
+  | { type: "tool_result"; toolCallId: string; name: string; result: ToolResult<unknown>; effects: VerifyEffects }
+  | { type: "escalation"; kind: "ticket" | "suggested"; reason: string; ticket?: Ticket }
+  | { type: "error"; code: string; message: string };
+
+export interface StoredEvent {
+  seq: number;
+  turnId: string;
+  channel: Channel;
+  createdAt: string;
+  event: SessionEvent;
+}
+
+export interface EventStore {
+  ensureSession(sessionId: string): Promise<void>;
+  append(sessionId: string, turnId: string, channel: Channel, event: SessionEvent): Promise<StoredEvent>;
+  list(sessionId: string): Promise<StoredEvent[]>;
+}
+
+export interface SessionState {
+  customer: VerifiedCustomer | null;
+  failedVerifications: number;
+}
+
+export function deriveState(events: StoredEvent[]): SessionState {
+  let customer: VerifiedCustomer | null = null;
+  let failedVerifications = 0;
+  for (const { event } of events) {
+    if (event.type !== "tool_result") continue;
+    if (event.effects.verified) customer = event.effects.verified;
+    if (event.effects.failedVerification) failedVerifications++;
+  }
+  return { customer, failedVerifications };
+}
+
+export type ContextMessage =
+  | { role: "user"; content: string }
+  | { role: "assistant"; content: string | null; tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string } }[] }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+/** Compact tool result for the model: data or the typed error, nothing else. */
+function toolContent(result: ToolResult<unknown>): string {
+  return JSON.stringify(result.ok ? { ok: true, data: result.data } : { ok: false, error: result.error as ToolError });
+}
+
+/**
+ * Rebuilds chat context from the log. Keeps the most recent `maxEvents`, trimmed forward to
+ * a user message so a tool call is never separated from its result.
+ */
+export function buildContext(events: StoredEvent[], maxEvents = 60): ContextMessage[] {
+  let start = Math.max(0, events.length - maxEvents);
+  while (start > 0 && start < events.length && events[start].event.type !== "user_message") start++;
+  const out: ContextMessage[] = [];
+  for (const { event } of events.slice(start)) {
+    switch (event.type) {
+      case "user_message":
+        out.push({ role: "user", content: event.text });
+        break;
+      case "assistant_message":
+        out.push({ role: "assistant", content: event.text });
+        break;
+      case "tool_call":
+        out.push({
+          role: "assistant",
+          content: event.content || null,
+          tool_calls: [{ id: event.toolCallId, type: "function", function: { name: event.name, arguments: event.arguments } }],
+        });
+        break;
+      case "tool_result":
+        out.push({ role: "tool", tool_call_id: event.toolCallId, content: toolContent(event.result) });
+        break;
+      default:
+        break; // escalation and error events are for the UI and audit, not the model
+    }
+  }
+  return out;
+}
+
+export class MemoryEventStore implements EventStore {
+  readonly sessions = new Map<string, StoredEvent[]>();
+  async ensureSession(sessionId: string) {
+    if (!this.sessions.has(sessionId)) this.sessions.set(sessionId, []);
+  }
+  async append(sessionId: string, turnId: string, channel: Channel, event: SessionEvent) {
+    const list = this.sessions.get(sessionId) ?? [];
+    const stored: StoredEvent = { seq: list.length + 1, turnId, channel, createdAt: new Date().toISOString(), event };
+    list.push(stored);
+    this.sessions.set(sessionId, list);
+    return stored;
+  }
+  async list(sessionId: string) {
+    return [...(this.sessions.get(sessionId) ?? [])];
+  }
+}

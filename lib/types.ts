@@ -17,23 +17,37 @@ export interface ChatMessage {
 
 // ---- SSE events streamed from /api/chat ----
 
-export type StepName =
-  | "verify_identity"
-  | "retrieve_policy"
-  | "issue_refund"
-  | "create_escalation"
-  | "guardrail_check"
-  | "generate_answer";
+export type ErrorCode =
+  | "llm_timeout"
+  | "llm_rate_limited"
+  | "llm_unavailable"
+  | "tool_failed"
+  | "rate_limited"
+  | "invalid_request"
+  | "internal";
 
-export type SseEvent =
-  | { type: "step_started"; stepId: string; step: StepName; label: string }
-  | { type: "step_completed"; stepId: string; step: StepName; ok: boolean; durationMs: number; summary?: string }
+export interface TicketSummary {
+  ticketNumber: string;
+  priority: "P1" | "P2" | "P3";
+  responseTarget: string;
+}
+
+/** Events emitted by one agent turn. The SSE route numbers them (`seq`). */
+export type AgentEvent =
+  | { type: "step_started"; stepId: string; tool: string; label: string }
+  | { type: "step_completed"; stepId: string; tool: string; label: string; ok: boolean; durationMs: number; summary: string }
   | { type: "token"; text: string }
+  | { type: "escalation"; kind: "ticket" | "suggested"; reason: string; ticket?: TicketSummary }
   | { type: "error"; code: ErrorCode; message: string; retryable: boolean }
   | { type: "trace"; span: TraceSpan }
-  | { type: "done"; turnId: string; escalated: boolean };
+  | {
+      type: "done";
+      turnId: string;
+      state: "completed" | "escalated" | "failed";
+      totals: { durationMs: number; tokensIn: number; tokensOut: number; costUsd: number };
+    };
 
-export type ErrorCode = "llm_timeout" | "llm_rate_limited" | "tool_failed" | "rate_limited" | "internal";
+export type SseEvent = AgentEvent & { seq: number };
 
 // ---- Observability ----
 

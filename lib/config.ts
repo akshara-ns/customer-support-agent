@@ -9,6 +9,8 @@ export const MODELS = {
   answer: "gpt-5.4-mini",
   /** Secondary claim-support check. Chosen by the sanity check in evals/RESULTS.md. */
   groundingCheck: "gpt-5.4-nano",
+  /** Agent loop (tool selection + replies). Chosen by the live scenario run; see DECISIONS.md. */
+  agent: "gpt-5.4-mini",
 } as const;
 
 export const EMBEDDING_DIMENSIONS = 1536;
