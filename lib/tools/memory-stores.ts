@@ -1,5 +1,5 @@
 /** In-memory stores with the same contracts as the Postgres ones (tests and scenario runs). */
-import type { ActionLedger, LedgerEntry, NewTicket, TicketStore } from "@/lib/tools/stores";
+import type { ActionLedger, LedgerEntry, NewTicket, TicketStore, VerifyGuard } from "@/lib/tools/stores";
 
 export class MemoryLedger implements ActionLedger {
   readonly entries = new Map<string, LedgerEntry>();
@@ -9,6 +9,11 @@ export class MemoryLedger implements ActionLedger {
   async begin(e: Omit<LedgerEntry, "status" | "result">) {
     const existing = this.entries.get(e.idempotencyKey);
     if (existing) return { created: false, entry: existing };
+    // Same rule as the Postgres unique index: one active (pending/succeeded) refund per invoice.
+    const active = [...this.entries.values()].find(
+      (x) => x.customerId === e.customerId && x.invoiceId === e.invoiceId && x.status !== "rejected",
+    );
+    if (active) return { created: false, entry: active };
     const entry: LedgerEntry = { ...e, status: "pending", result: null };
     this.entries.set(e.idempotencyKey, entry);
     this.log.push(`begin:${e.idempotencyKey}`);
@@ -18,6 +23,7 @@ export class MemoryLedger implements ActionLedger {
   async complete(key: string, status: "succeeded" | "rejected", result: unknown) {
     const entry = this.entries.get(key);
     if (!entry) throw new Error(`no ledger entry ${key}`);
+    if (entry.status !== "pending") throw new Error(`ledger entry ${key} was not pending`); // same contract as pgLedger
     entry.status = status;
     entry.result = result;
     this.log.push(`complete:${status}:${key}`);
@@ -42,5 +48,16 @@ export class MemoryTickets implements TicketStore {
     const ticketNumber = `ESC-${this.next++}`;
     this.tickets.set(t.idempotencyKey, { ...t, ticketNumber });
     return { ticketNumber, replayed: false };
+  }
+}
+
+export class MemoryVerifyGuard implements VerifyGuard {
+  readonly counts = new Map<string, number>();
+  async failures(email: string) {
+    return this.counts.get(email.trim().toLowerCase()) ?? 0;
+  }
+  async recordFailure(email: string) {
+    const k = email.trim().toLowerCase();
+    this.counts.set(k, (this.counts.get(k) ?? 0) + 1);
   }
 }

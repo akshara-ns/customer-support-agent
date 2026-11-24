@@ -25,9 +25,13 @@ export interface LedgerEntry {
 
 /** Write-ahead ledger for account actions. */
 export interface ActionLedger {
-  /** Records a pending action; if the key already exists, returns the existing entry instead. */
+  /**
+   * Records a pending action. If the key already exists, returns that entry. If ANOTHER request
+   * already holds this invoice (pending or succeeded), returns that entry instead: at most one
+   * active refund per customer invoice (enforced by a unique index in Postgres).
+   */
   begin(entry: Omit<LedgerEntry, "status" | "result">): Promise<{ created: boolean; entry: LedgerEntry }>;
-  /** Marks the action final. Success is only acknowledged after this resolves. */
+  /** Marks a pending action final (throws if it isn't pending). Success is only acknowledged after this resolves. */
   complete(idempotencyKey: string, status: Exclude<LedgerStatus, "pending">, result: unknown): Promise<void>;
   /** Sum of succeeded refunds for one invoice. */
   refundedUsd(customerId: string, invoiceId: string): Promise<number>;
@@ -58,7 +62,15 @@ export interface PolicySearch {
   search(question: string, tier: Tier | null, trace?: Trace): Promise<PolicyAnswer>;
 }
 
+/** Failed verification attempts per account, across sessions (brute-force protection). */
+export interface VerifyGuard {
+  failures(email: string): Promise<number>;
+  recordFailure(email: string): Promise<void>;
+}
+
 export interface ToolDeps {
+  /** Per-account lockout across sessions. Production always sets it; absent = per-session lockout only. */
+  verifyGuard?: VerifyGuard;
   customers: CustomerDirectory;
   ledger: ActionLedger;
   tickets: TicketStore;

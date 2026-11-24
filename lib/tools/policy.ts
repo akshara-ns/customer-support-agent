@@ -12,6 +12,9 @@ export const REFUND_RULES: Record<Tier, { maxUsd: number; windowDays: number }> 
 };
 
 export const MAX_FAILED_VERIFICATIONS = 3;
+/** Per account (email), across sessions and channels, in a rolling window. */
+export const MAX_ACCOUNT_FAILURES = 5;
+export const ACCOUNT_LOCK_WINDOW_SEC = 900;
 
 const DAY_MS = 86_400_000;
 
@@ -78,7 +81,8 @@ export function evaluateRefund(r: RefundRequest): ToolError | null {
       retryable: false,
     };
   }
-  if (!Number.isFinite(amountUsd) || amountUsd <= 0 || Math.round(amountUsd * 100) !== amountUsd * 100) {
+  // Whole cents only. Compare with a tolerance: 19.99 * 100 is 1998.9999999999998 in floating point.
+  if (!Number.isFinite(amountUsd) || amountUsd <= 0 || Math.abs(Math.round(amountUsd * 100) - amountUsd * 100) > 1e-6) {
     return { code: "INVALID_AMOUNT", message: "The refund amount must be a positive amount in dollars and cents.", retryable: false };
   }
   if (amountUsd > invoice.amountUsd) {

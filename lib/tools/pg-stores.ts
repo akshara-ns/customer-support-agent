@@ -1,7 +1,9 @@
 import "server-only";
+import { createHash } from "node:crypto";
+import { ACCOUNT_LOCK_WINDOW_SEC } from "@/lib/tools/policy";
 import { db } from "@/lib/db/client";
 import { answerWithGuardrails } from "@/lib/guardrails/pipeline";
-import type { ActionLedger, LedgerEntry, PolicySearch, TicketStore } from "@/lib/tools/stores";
+import type { ActionLedger, LedgerEntry, PolicySearch, TicketStore, VerifyGuard } from "@/lib/tools/stores";
 
 interface ActionRow {
   idempotency_key: string;
@@ -30,12 +32,18 @@ export const pgLedger: ActionLedger = {
       INSERT INTO actions (idempotency_key, session_id, customer_id, action_type, status, invoice_id, amount_usd, request)
       VALUES (${e.idempotencyKey}, ${e.sessionId}, ${e.customerId}, 'refund', 'pending', ${e.invoiceId}, ${e.amountUsd},
               ${JSON.stringify({ invoice_id: e.invoiceId, amount_usd: e.amountUsd })}::jsonb)
-      ON CONFLICT (idempotency_key) DO NOTHING
+      ON CONFLICT DO NOTHING
       RETURNING idempotency_key, session_id, customer_id, invoice_id, amount_usd, status, result`) as ActionRow[];
     if (inserted[0]) return { created: true, entry: toEntry(inserted[0]) };
+    // Conflict on the idempotency key (a replay) or on the one-active-refund-per-invoice index.
     const existing = (await sql`
       SELECT idempotency_key, session_id, customer_id, invoice_id, amount_usd, status, result
-      FROM actions WHERE idempotency_key = ${e.idempotencyKey}`) as ActionRow[];
+      FROM actions
+      WHERE idempotency_key = ${e.idempotencyKey}
+         OR (customer_id = ${e.customerId} AND invoice_id = ${e.invoiceId} AND status IN ('pending', 'succeeded'))
+      ORDER BY (idempotency_key = ${e.idempotencyKey}) DESC
+      LIMIT 1`) as ActionRow[];
+    if (!existing[0]) throw new Error("ledger conflict without a matching entry");
     return { created: false, entry: toEntry(existing[0]) };
   },
   async complete(key, status, result) {
@@ -86,5 +94,26 @@ export const guardedPolicySearch: PolicySearch = {
       citations: r.grounding?.citations.cited ?? [],
       confidence: Math.round(r.decision.confidence * 1000) / 1000,
     };
+  },
+};
+
+const emailKey = (email: string) => createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 32);
+
+/** Failed verifications per account in a fixed window, in the shared rate_limits table (emails hashed). */
+export const pgVerifyGuard: VerifyGuard = {
+  async failures(email) {
+    const rows = (await db()`
+      SELECT count FROM rate_limits
+      WHERE bucket = 'verify_fail' AND key = ${emailKey(email)}
+        AND window_start = to_timestamp(floor(extract(epoch FROM now()) / ${ACCOUNT_LOCK_WINDOW_SEC}) * ${ACCOUNT_LOCK_WINDOW_SEC})`) as {
+      count: number;
+    }[];
+    return rows[0]?.count ?? 0;
+  },
+  async recordFailure(email) {
+    await db()`
+      INSERT INTO rate_limits (bucket, key, window_start, count)
+      VALUES ('verify_fail', ${emailKey(email)}, to_timestamp(floor(extract(epoch FROM now()) / ${ACCOUNT_LOCK_WINDOW_SEC}) * ${ACCOUNT_LOCK_WINDOW_SEC}), 1)
+      ON CONFLICT (bucket, key, window_start) DO UPDATE SET count = rate_limits.count + 1`;
   },
 };

@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { activeFault } from "@/lib/faults";
 import {
+  MAX_ACCOUNT_FAILURES,
   MAX_FAILED_VERIFICATIONS,
   evaluateRefund,
   refundDeadline,
@@ -63,10 +64,22 @@ export async function verifyIdentity(
       effects: {},
     };
   }
+  // Per-account lockout across sessions: rotating session ids can't buy more PIN guesses.
+  if (deps.verifyGuard && (await deps.verifyGuard.failures(input.email)) >= MAX_ACCOUNT_FAILURES) {
+    return {
+      result: fail({
+        code: "IDENTITY_LOCKED",
+        message: "Too many failed verification attempts for this account. Please try again later or ask for a human.",
+        retryable: false,
+      }),
+      effects: {},
+    };
+  }
   const user = deps.customers.findByEmail(input.email);
   // Already verified for this account in this session: don't re-check the PIN (the model only sees it redacted).
   const alreadyVerified = !!user && ctx.customer?.customerId === user.customerId;
   if (!user || (!alreadyVerified && user.supportPin !== input.code.trim())) {
+    await deps.verifyGuard?.recordFailure(input.email);
     const attempts = ctx.failedVerifications + 1;
     if (attempts >= MAX_FAILED_VERIFICATIONS) {
       // Policy: after three failed attempts, stop and escalate to the security team.
@@ -161,6 +174,22 @@ export async function issueRefund(
     invoiceId: input.invoice_id,
     amountUsd: input.amount_usd,
   });
+  if (!created && entry.idempotencyKey !== key) {
+    // Another request (other amount, session or channel) already holds this invoice.
+    return fail(
+      entry.status === "succeeded"
+        ? {
+            code: "ALREADY_REFUNDED",
+            message: `Invoice ${input.invoice_id} has already been refunded ($${entry.amountUsd}); only one refund is allowed per invoice.`,
+            retryable: false,
+          }
+        : {
+            code: "REFUND_IN_PROGRESS",
+            message: `Another refund for invoice ${input.invoice_id} is already being processed. Nothing new was started.`,
+            retryable: true,
+          },
+    );
+  }
   if (!created && entry.status === "succeeded") {
     return { ok: true, data: { ...(entry.result as RefundReceipt), replayed: true } };
   }
