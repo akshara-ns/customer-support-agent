@@ -16,7 +16,7 @@ export function redact<T>(value: T): T {
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) {
-      out[k] = /^(code|pin|support_pin|password|apiKey|api_key|clientSecret|value)$/i.test(k) && typeof v === "string" ? "[redacted]" : redact(v);
+      out[k] = /^(pin|support_pin|password|apiKey|api_key|clientSecret|value)$/i.test(k) && typeof v === "string" ? "[redacted]" : redact(v);
     }
     return out as T;
   }
