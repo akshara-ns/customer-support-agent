@@ -269,6 +269,15 @@ export async function issueRefund(
 
 // ---------- create_escalation_ticket ----------
 
+/**
+ * What a ticket is about, for its idempotency key: the invoice when the summary names one (rewording
+ * still dedupes), otherwise the normalized summary. Different problems get different tickets.
+ */
+function ticketSubject(summary: string): string {
+  const invoice = summary.match(/\binv_\d+\b/i)?.[0];
+  return invoice ? invoice.toLowerCase() : summary.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 async function openTicket(
   input: { reason: TicketReason; summary: string },
   ctx: ToolContext,
@@ -277,7 +286,7 @@ async function openTicket(
   const priority = ticketPriority(input.reason);
   const tier = ctx.customer?.tier ?? null;
   const { ticketNumber, replayed } = await deps.tickets.create({
-    idempotencyKey: hash("ticket", ctx.sessionId, input.reason),
+    idempotencyKey: hash("ticket", ctx.sessionId, input.reason, ticketSubject(input.summary)),
     sessionId: ctx.sessionId,
     customerId: ctx.customer?.customerId ?? null,
     tier,
