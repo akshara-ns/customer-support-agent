@@ -7,6 +7,7 @@ import { activeFault } from "@/lib/faults";
 import {
   MAX_ACCOUNT_FAILURES,
   MAX_FAILED_VERIFICATIONS,
+  MAX_SOURCE_FAILURES,
   PENDING_REFUND_EXPIRY_SEC,
   evaluateRefund,
   refundDeadline,
@@ -56,8 +57,11 @@ export async function verifyIdentity(
       effects: {},
     };
   }
-  // Per-account lockout across sessions: rotating session ids can't buy more PIN guesses.
-  if (deps.verifyGuard && (await deps.verifyGuard.failures(input.email)) >= MAX_ACCOUNT_FAILURES) {
+  // Lockout across sessions: per (account + client) so rotating session ids can't buy more PIN guesses,
+  // plus a higher per-account ceiling so one attacker can't trivially lock the real customer out.
+  const source = ctx.clientKey ?? ctx.sessionId;
+  const counts = deps.verifyGuard ? await deps.verifyGuard.failures(input.email, source) : null;
+  if (counts && (counts.source >= MAX_SOURCE_FAILURES || counts.account >= MAX_ACCOUNT_FAILURES)) {
     return {
       result: fail({
         code: "IDENTITY_LOCKED",
@@ -71,7 +75,7 @@ export async function verifyIdentity(
   // Already verified for this account in this session: don't re-check the PIN (the model only sees it redacted).
   const alreadyVerified = !!user && ctx.customer?.customerId === user.customerId;
   if (!user || (!alreadyVerified && user.supportPin !== input.code.trim())) {
-    await deps.verifyGuard?.recordFailure(input.email);
+    await deps.verifyGuard?.recordFailure(input.email, source);
     const attempts = ctx.failedVerifications + 1;
     if (attempts >= MAX_FAILED_VERIFICATIONS) {
       // Policy: after three failed attempts, stop and escalate to the security team.

@@ -54,4 +54,6 @@ export interface ToolContext {
   refundRequested?: boolean;
   /** Email from this conversation's last verify_identity attempt, so a retry can send only a new PIN. */
   lastVerifyEmail?: string | null;
+  /** Hashed client IP (from the route), for per-client PIN lockout; falls back to the session id. */
+  clientKey?: string;
 }

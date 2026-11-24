@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { ACCOUNT_LOCK_WINDOW_SEC } from "@/lib/tools/policy";
+import { ACCOUNT_CAP_WINDOW_SEC, ACCOUNT_LOCK_WINDOW_SEC } from "@/lib/tools/policy";
 import { db } from "@/lib/db/client";
 import { answerWithGuardrails } from "@/lib/guardrails/pipeline";
 import { policySearchWith } from "@/lib/tools/policy-search";
@@ -99,20 +99,29 @@ export const guardedPolicySearch: PolicySearch = policySearchWith(answerWithGuar
 const emailKey = (email: string) => createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 32);
 
 /** Failed verifications per account in a fixed window, in the shared rate_limits table (emails hashed). */
+const sourceKey = (email: string, source: string) => `${emailKey(email)}:${source.slice(0, 40)}`;
+
 export const pgVerifyGuard: VerifyGuard = {
-  async failures(email) {
+  async failures(email, source) {
     const rows = (await db()`
-      SELECT count FROM rate_limits
-      WHERE bucket = 'verify_fail' AND key = ${emailKey(email)}
-        AND window_start = to_timestamp(floor(extract(epoch FROM now()) / ${ACCOUNT_LOCK_WINDOW_SEC}) * ${ACCOUNT_LOCK_WINDOW_SEC})`) as {
+      SELECT bucket, count FROM rate_limits
+      WHERE (bucket = 'verify_fail_src' AND key = ${sourceKey(email, source)}
+             AND window_start = to_timestamp(floor(extract(epoch FROM now()) / ${ACCOUNT_LOCK_WINDOW_SEC}) * ${ACCOUNT_LOCK_WINDOW_SEC}))
+         OR (bucket = 'verify_fail_acct' AND key = ${emailKey(email)}
+             AND window_start = to_timestamp(floor(extract(epoch FROM now()) / ${ACCOUNT_CAP_WINDOW_SEC}) * ${ACCOUNT_CAP_WINDOW_SEC}))`) as {
+      bucket: string;
       count: number;
     }[];
-    return rows[0]?.count ?? 0;
+    return {
+      source: rows.find((r) => r.bucket === "verify_fail_src")?.count ?? 0,
+      account: rows.find((r) => r.bucket === "verify_fail_acct")?.count ?? 0,
+    };
   },
-  async recordFailure(email) {
+  async recordFailure(email, source) {
     await db()`
       INSERT INTO rate_limits (bucket, key, window_start, count)
-      VALUES ('verify_fail', ${emailKey(email)}, to_timestamp(floor(extract(epoch FROM now()) / ${ACCOUNT_LOCK_WINDOW_SEC}) * ${ACCOUNT_LOCK_WINDOW_SEC}), 1)
+      VALUES ('verify_fail_src', ${sourceKey(email, source)}, to_timestamp(floor(extract(epoch FROM now()) / ${ACCOUNT_LOCK_WINDOW_SEC}) * ${ACCOUNT_LOCK_WINDOW_SEC}), 1),
+             ('verify_fail_acct', ${emailKey(email)}, to_timestamp(floor(extract(epoch FROM now()) / ${ACCOUNT_CAP_WINDOW_SEC}) * ${ACCOUNT_CAP_WINDOW_SEC}), 1)
       ON CONFLICT (bucket, key, window_start) DO UPDATE SET count = rate_limits.count + 1`;
   },
 };

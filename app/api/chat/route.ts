@@ -7,7 +7,7 @@ import { FAULTS, runWithFault } from "@/lib/faults";
 import { authorizeSession, ownerFromRequest, withOwnerCookie } from "@/lib/session/owner";
 import { errorResponse, log, newRequestId } from "@/lib/log";
 import { persistTrace } from "@/lib/observability/pg-traces";
-import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
+import { clientKey, consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { pgEventStore } from "@/lib/session/pg-store";
 import { StreamLog } from "@/lib/session/stream-log";
 import { productionActionChecker, productionFinalChecker, productionToolDeps } from "@/lib/server/deps";
@@ -70,7 +70,7 @@ export async function POST(request: Request): Promise<Response> {
       try {
         const summary = await runWithFault(simulate, () =>
           runTurn(
-            { sessionId, message, channel: "chat" },
+            { sessionId, message, channel: "chat", clientKey: clientKey(request) },
             {
               model: openAIAgentModel(),
               events: pgEventStore,

@@ -13,7 +13,11 @@ export const REFUND_RULES: Record<Tier, { maxUsd: number; windowDays: number }> 
 
 export const MAX_FAILED_VERIFICATIONS = 3;
 /** Per account (email), across sessions and channels, in a rolling window. */
-export const MAX_ACCOUNT_FAILURES = 5;
+/** Failed PINs per (account + client) per ACCOUNT_LOCK_WINDOW_SEC: locks that client only. */
+export const MAX_SOURCE_FAILURES = 5;
+/** Failed PINs per account from all clients per ACCOUNT_CAP_WINDOW_SEC: the brute-force ceiling (~480/day vs 10^6 PINs). */
+export const MAX_ACCOUNT_FAILURES = 20;
+export const ACCOUNT_CAP_WINDOW_SEC = 3600;
 /** Customer wording that asks for money back (checked over the customer's own messages only). */
 export const REFUND_INTENT = /\b(refund\w*|money back|reimburs\w*|credit (it |that |this )?back|charge ?back|return (my|the) money)\b/i;
 

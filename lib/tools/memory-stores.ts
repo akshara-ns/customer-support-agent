@@ -79,11 +79,12 @@ export class MemoryTickets implements TicketStore {
 
 export class MemoryVerifyGuard implements VerifyGuard {
   readonly counts = new Map<string, number>();
-  async failures(email: string) {
-    return this.counts.get(email.trim().toLowerCase()) ?? 0;
+  async failures(email: string, source: string) {
+    const e = email.trim().toLowerCase();
+    return { source: this.counts.get(`${e}|${source}`) ?? 0, account: this.counts.get(e) ?? 0 };
   }
-  async recordFailure(email: string) {
-    const k = email.trim().toLowerCase();
-    this.counts.set(k, (this.counts.get(k) ?? 0) + 1);
+  async recordFailure(email: string, source: string) {
+    const e = email.trim().toLowerCase();
+    for (const k of [e, `${e}|${source}`]) this.counts.set(k, (this.counts.get(k) ?? 0) + 1);
   }
 }

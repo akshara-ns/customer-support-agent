@@ -70,9 +70,14 @@ export interface PolicySearch {
 }
 
 /** Failed verification attempts per account, across sessions (brute-force protection). */
+/**
+ * Failed-PIN counters across sessions. `source` is the client (hashed IP, or the session id when there is
+ * none): a client is locked after MAX_SOURCE_FAILURES, the account for everyone only after MAX_ACCOUNT_FAILURES,
+ * so one attacker can't trivially lock a real customer out, and brute force stays capped.
+ */
 export interface VerifyGuard {
-  failures(email: string): Promise<number>;
-  recordFailure(email: string): Promise<void>;
+  failures(email: string, source: string): Promise<{ source: number; account: number }>;
+  recordFailure(email: string, source: string): Promise<void>;
 }
 
 export interface ToolDeps {

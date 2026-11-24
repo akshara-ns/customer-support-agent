@@ -29,6 +29,8 @@ export interface TurnInput {
   sessionId: string;
   message: string;
   channel: Channel;
+  /** Hashed client IP, for per-client PIN lockout. */
+  clientKey?: string;
 }
 
 export interface TurnDeps {
@@ -91,6 +93,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
     customer: prior.customer,
     failedVerifications: prior.failedVerifications,
     lastVerifyEmail: prior.lastVerifyEmail,
+    clientKey: input.clientKey,
     trace,
     refundRequested:
       REFUND_INTENT.test(input.message) || history.some(({ event }) => event.type === "user_message" && REFUND_INTENT.test(event.text)),

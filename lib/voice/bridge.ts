@@ -24,7 +24,7 @@ export type { VoiceToolResponse } from "@/lib/contracts";
 
 export async function runVoiceTool(
   req: VoiceToolRequest,
-  deps: { events: EventStore; tools: ToolDeps; traceSink?: (trace: Trace, channel: "voice") => Promise<void> },
+  deps: { events: EventStore; tools: ToolDeps; traceSink?: (trace: Trace, channel: "voice") => Promise<void>; clientKey?: string },
 ): Promise<VoiceToolResponse> {
   await deps.events.ensureSession(req.sessionId);
   // No refundRequested check in voice: the caller's transcript is posted asynchronously and can arrive
@@ -38,7 +38,7 @@ export async function runVoiceTool(
     channel: "voice",
     stepId: `${req.turnId}:${req.callId}`,
     call: { id: req.callId, name: req.name, arguments: req.arguments },
-    ctx: { sessionId: req.sessionId, turnId: req.turnId, customer: state.customer, failedVerifications: state.failedVerifications, lastVerifyEmail: state.lastVerifyEmail, trace },
+    ctx: { sessionId: req.sessionId, turnId: req.turnId, customer: state.customer, failedVerifications: state.failedVerifications, lastVerifyEmail: state.lastVerifyEmail, clientKey: deps.clientKey, trace },
     deps: deps.tools,
     events: deps.events,
     emit: (e) => emitted.push(e),

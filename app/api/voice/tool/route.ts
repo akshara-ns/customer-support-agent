@@ -4,7 +4,7 @@ import { FAULTS, runWithFault } from "@/lib/faults";
 import { authorizeSession, ownerFromRequest, withOwnerCookie } from "@/lib/session/owner";
 import { errorResponse, log, newRequestId } from "@/lib/log";
 import { persistTrace } from "@/lib/observability/pg-traces";
-import { consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
+import { clientKey, consumeLimits, rateLimitedResponse } from "@/lib/ratelimit";
 import { runVoiceTool } from "@/lib/voice/bridge";
 import { productionEvents, productionToolDeps } from "@/lib/server/deps";
 
@@ -39,6 +39,7 @@ export async function POST(request: Request): Promise<Response> {
         events: productionEvents,
         tools: productionToolDeps(),
         traceSink: (trace, channel) => persistTrace(sessionId, trace, channel),
+        clientKey: clientKey(request),
       }),
     );
     log.info("voice tool", { requestId, sessionId, tool: parsed.data.name, ok: result.ok, simulate: parsed.data.simulate });

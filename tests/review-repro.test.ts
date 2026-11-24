@@ -51,19 +51,40 @@ describe("G2: placeholder credentials don't burn a verification attempt", () => 
   });
 });
 
-describe("G5: lockout is per account, not just per session", () => {
-  it("after 5 failed attempts on one email across sessions, a NEW session is locked too", async () => {
+describe("G5 (revised in Phase 10A): lockout per account + client, with a per-account ceiling", () => {
+  it("after 5 failed attempts from one client across sessions, a NEW session from that client is locked too", async () => {
     const { MemoryVerifyGuard } = await import("@/lib/tools/memory-stores");
     const guard = new MemoryVerifyGuard();
     const deps: ToolDeps = { customers: customerDirectory(NOW), ledger: new MemoryLedger(), tickets: new MemoryTickets(), policy, now: () => NOW, verifyGuard: guard };
     for (let i = 0; i < 5; i++) {
-      const c: ToolContext = { sessionId: `s${i}`, turnId: "t", customer: null, failedVerifications: 0 };
+      const c: ToolContext = { sessionId: `s${i}`, turnId: "t", customer: null, failedVerifications: 0, clientKey: "attacker-ip" };
       await executeTool("verify_identity", JSON.stringify({ email: "omar@example.com", code: "000000" }), c, deps);
     }
-    const fresh: ToolContext = { sessionId: "s-new", turnId: "t", customer: null, failedVerifications: 0 };
+    const fresh: ToolContext = { sessionId: "s-new", turnId: "t", customer: null, failedVerifications: 0, clientKey: "attacker-ip" };
     const r = await executeTool("verify_identity", JSON.stringify({ email: "omar@example.com", code: "715204" }), fresh, deps);
     expect(!r.result.ok && r.result.error.code).toBe("IDENTITY_LOCKED");
     expect(r.effects.verified).toBeUndefined();
+  });
+});
+
+describe("lockout can't be used to lock a real customer out (Phase 10A, senior review)", () => {
+  const attempt = async (deps: ToolDeps, clientKey: string, code: string, sessionId = `s-${Math.random()}`) =>
+    executeTool("verify_identity", JSON.stringify({ email: "omar@example.com", code }), { sessionId, turnId: "t", customer: null, failedVerifications: 0, clientKey }, deps);
+
+  it("an attacker's 5 failures lock the attacker's client, not the customer's", async () => {
+    const { MemoryVerifyGuard } = await import("@/lib/tools/memory-stores");
+    const deps: ToolDeps = { customers: customerDirectory(NOW), ledger: new MemoryLedger(), tickets: new MemoryTickets(), policy, now: () => NOW, verifyGuard: new MemoryVerifyGuard() };
+    for (let i = 0; i < 5; i++) await attempt(deps, "attacker-ip", "000000");
+    expect(!(await attempt(deps, "attacker-ip", "715204")).result.ok).toBe(true);
+    expect((await attempt(deps, "customer-ip", "715204")).effects.verified?.customerId).toBe("cus_pro_omar");
+  });
+
+  it("brute force from many clients still hits the per-account ceiling (20)", async () => {
+    const { MemoryVerifyGuard } = await import("@/lib/tools/memory-stores");
+    const deps: ToolDeps = { customers: customerDirectory(NOW), ledger: new MemoryLedger(), tickets: new MemoryTickets(), policy, now: () => NOW, verifyGuard: new MemoryVerifyGuard() };
+    for (let i = 0; i < 20; i++) await attempt(deps, `ip-${i}`, "000000");
+    const r = await attempt(deps, "fresh-ip", "715204");
+    expect(!r.result.ok && r.result.error.code).toBe("IDENTITY_LOCKED");
   });
 });
 
