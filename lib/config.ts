@@ -50,8 +50,12 @@ export const GUARDRAILS = {
    * `npm run eval:guardrails` on the calibration split; see evals/RESULTS.md.
    */
   similarityThreshold: 0.28,
-  /** Per-call timeout for the answer and grounding-check models. */
+  /** Per-call timeout for the agent model (streams a whole reply). */
   llmTimeoutMs: 20_000,
+  /** Per-call timeout for calls inside tools and checks (embeddings, answer, grounding, claim check). */
+  toolCallTimeoutMs: 8_000,
+  /** End-to-end budget for one chat turn; past it the turn ends with a fallback reply. */
+  turnDeadlineMs: 40_000,
 } as const;
 
 /** Abuse and cost limits for public endpoints (lib/ratelimit.ts). */

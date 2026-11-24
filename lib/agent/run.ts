@@ -6,6 +6,8 @@
 import { ClaimGate, type ActionChecker, type TurnActions } from "@/lib/guardrails/claims";
 import { AgentMachine, type AgentState } from "@/lib/agent/machine";
 import { ModelError, type AgentModel } from "@/lib/agent/model";
+import { GUARDRAILS } from "@/lib/config";
+import { DeadlineExceeded, raceDeadline, runWithSignal } from "@/lib/deadline";
 import { DEFAULT_RETRY, withRetry } from "@/lib/agent/retry";
 import { redact } from "@/lib/observability/redact";
 import { SYSTEM_PROMPT } from "@/lib/agent/prompt";
@@ -37,12 +39,15 @@ export interface TurnDeps {
   sleep?: (ms: number) => Promise<void>;
   /** Layer-2 action-claim check (model extraction vs the tool log). Without it only the regex layer runs. */
   actionChecker?: ActionChecker;
+  /** End-to-end budget for the turn (default GUARDRAILS.turnDeadlineMs); tests shorten it. */
+  deadlineMs?: number;
 }
 
 /** Streamed before the first tool runs when the model gave no preamble (claim-free by construction). */
 export const ACKNOWLEDGMENT = "One moment while I check that. ";
 
 const FALLBACK: Record<string, string> = {
+  deadline: "Sorry, this is taking longer than it should.",
   llm_timeout: "Sorry, the assistant took too long to respond.",
   llm_rate_limited: "Sorry, the assistant is busy right now.",
   llm_unavailable: "Sorry, the assistant is unavailable right now.",
@@ -122,6 +127,11 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
     }
   };
 
+  // One end-to-end deadline: every model call, check and tool step runs under its signal and races it.
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(), deps.deadlineMs ?? GUARDRAILS.turnDeadlineMs);
+  const guarded = <T,>(fn: () => Promise<T>) => raceDeadline(runWithSignal(deadline.signal, fn), deadline.signal);
+
   go("planning");
   try {
     for (let steps = 0; ; ) {
@@ -142,7 +152,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
         const t = await withRetry(
           async () => {
             attemptEmitted = 0;
-            return deps.model.complete({ system: SYSTEM_PROMPT, messages, tools: TOOL_DEFINITIONS, toolChoice }, (d) => say(gate.push(d)));
+            return guarded(() => deps.model.complete({ system: SYSTEM_PROMPT, messages, tools: TOOL_DEFINITIONS, toolChoice }, (d) => say(gate.push(d))));
           },
           {
             ...DEFAULT_RETRY,
@@ -169,7 +179,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
 
       if (turn.toolCalls.length === 0 || toolChoice === "none") {
         go("checking_claims");
-        say(await gate.settle(checker, (err) => trace.mark("guardrail", "action_claim_check_failed", { error: String(err) })));
+        say(await guarded(() => gate.settle(checker, (err) => trace.mark("guardrail", "action_claim_check_failed", { error: String(err) }))));
         if (gate.corrections.length) trace.mark("guardrail", "claim_check", { corrections: gate.corrections });
         go("responding");
         await log({ type: "assistant_message", text: iterationText.trim(), corrections: gate.corrections.map((c) => c.reason) });
@@ -181,7 +191,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
         steps++;
         toolsCalled.push(call.name);
         go("executing_tool", call.name);
-        const { outcome } = await runToolStep({
+        // A refund caught by the deadline stays pending and resumes on retry (same idempotency key).
+        const { outcome } = await guarded(() => runToolStep({
           sessionId,
           turnId: trace.turnId,
           channel,
@@ -193,7 +204,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
           events: deps.events,
           emit,
           trace,
-        });
+        }));
 
         // Session state and per-turn facts the claim gate checks against.
         if (outcome.effects.verified) ctx.customer = outcome.effects.verified;
@@ -213,8 +224,14 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
     }
     go(escalated ? "escalated" : "completed");
   } catch (err) {
-    const code = err instanceof ModelError ? err.code : "internal";
-    const message = err instanceof ModelError ? err.message : "Something went wrong on our side.";
+    const timedOut = deadline.signal.aborted || err instanceof DeadlineExceeded;
+    const code = timedOut ? "llm_timeout" : err instanceof ModelError ? err.code : "internal";
+    const message = timedOut
+      ? "This turn ran past its time budget."
+      : err instanceof ModelError
+        ? err.message
+        : "Something went wrong on our side.";
+    if (timedOut) trace.mark("agent", "turn_deadline", { ms: deps.deadlineMs ?? GUARDRAILS.turnDeadlineMs });
     console.error("agent turn failed", err);
     machine.fail(message);
     trace.mark("agent", "turn_failed", { code, message });
@@ -224,12 +241,13 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
       ...actions.refunds.map((r) => `A refund of $${r.amountUsd} on invoice ${r.invoiceId} was issued.`),
       ...actions.tickets.map((t) => `Ticket ${t.ticketNumber} was created.`),
     ].join(" ");
-    const fallback = `${FALLBACK[code] ?? FALLBACK.internal} ${done ? `${done} ` : "Nothing was changed. "}Please try again in a moment.`;
+    const fallback = `${(timedOut ? FALLBACK.deadline : FALLBACK[code]) ?? FALLBACK.internal} ${done ? `${done} ` : "Nothing was changed. "}Please try again in a moment.`;
     gate.flush();
     say([reply ? `\n\n${fallback}` : fallback]);
     await log({ type: "error", code, message });
   }
 
+  clearTimeout(timer);
   const state = machine.state === "escalated" ? "escalated" : machine.state === "completed" ? "completed" : "failed";
   trace.mark("agent", "turn_end", { state, ttftMs, toolsCalled });
   if (deps.traceSink) {

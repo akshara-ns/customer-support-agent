@@ -2,7 +2,7 @@
  * Layer boundaries, enforced. Layers top to bottom:
  *   ui (components/, app pages) → routes (app/api) → server (lib/server) → orchestration (lib/agent,
  *   lib/voice) → tools (lib/tools) → guardrails (lib/guardrails) → rag (lib/rag) → infra (lib/session,
- *   lib/observability, lib/db, lib/openai, lib/env, lib/log, lib/faults, lib/ratelimit, lib/health, lib/admin)
+ *   lib/observability, lib/db, lib/openai, lib/env, lib/log, lib/faults, lib/ratelimit, lib/health, lib/admin, lib/deadline)
  * Shared, client-safe modules (lib/contracts, lib/types, lib/config) may be imported from anywhere.
  * Rule: a runtime import may only point to the same layer or a lower one. The UI may only import
  * components and shared modules (pages may also use the server composition root, lib/server).
@@ -23,7 +23,7 @@ const LAYERS: [string, RegExp][] = [
   ["tools", /^lib\/tools\//],
   ["guardrails", /^lib\/guardrails\//],
   ["rag", /^lib\/rag\//],
-  ["infra", /^lib\/(session|observability|db)\/|^lib\/(openai|env|log|faults|ratelimit|health|admin)\.ts$/],
+  ["infra", /^lib\/(session|observability|db)\/|^lib\/(openai|env|log|faults|ratelimit|health|admin|deadline)\.ts$/],
 ];
 
 function layerOf(file: string): number {
