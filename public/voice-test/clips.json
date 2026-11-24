@@ -1,0 +1,42 @@
+[
+  {
+    "id": "verify",
+    "label": "Verify (Omar)",
+    "text": "Hi, this is Omar. My email is omar at example dot com, and my support PIN is seven one five two zero four."
+  },
+  {
+    "id": "policy",
+    "label": "Ask refund policy",
+    "text": "What's the refund limit and the refund window on my plan?"
+  },
+  {
+    "id": "refund",
+    "label": "Refund $29 seat",
+    "text": "Please refund the twenty-nine dollar charge for the extra seat I added mid-month."
+  },
+  {
+    "id": "overlimit",
+    "label": "Refund $900 (over limit)",
+    "text": "Can you refund nine hundred dollars of my annual plan invoice?"
+  },
+  {
+    "id": "escalate",
+    "label": "Yes, escalate",
+    "text": "Yes, please escalate that to the billing team."
+  },
+  {
+    "id": "long",
+    "label": "Long question",
+    "text": "Can you walk me through everything I should try when the desktop app won't sync? Please explain each step in detail."
+  },
+  {
+    "id": "interrupt",
+    "label": "Interrupt",
+    "text": "Sorry, stop there. Just tell me how long refunds take to arrive."
+  },
+  {
+    "id": "invoices",
+    "label": "Which invoices?",
+    "text": "Which of my invoices can I still get refunded?"
+  }
+]
