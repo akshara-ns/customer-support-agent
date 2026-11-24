@@ -11,7 +11,30 @@
       "contract_end_in_days": null,
       "seats": 2,
       "invoices": [
-        { "invoice_id": "inv_1001", "days_ago": 3, "amount_usd": 12, "description": "Storage Pack add-on", "refunded_usd": 0, "chargeback": false }
+        {
+          "invoice_id": "inv_1001",
+          "days_ago": 3,
+          "amount_usd": 12,
+          "description": "Storage Pack add-on",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_1002",
+          "days_ago": 2,
+          "amount_usd": 12,
+          "description": "Storage Pack add-on (second pack)",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_1003",
+          "days_ago": 5,
+          "amount_usd": 9,
+          "description": "Template bundle",
+          "refunded_usd": 0,
+          "chargeback": false
+        }
       ]
     },
     {
@@ -24,10 +47,62 @@
       "contract_end_in_days": 98,
       "seats": 6,
       "invoices": [
-        { "invoice_id": "inv_2001", "days_ago": 22, "amount_usd": 174, "description": "Pro monthly, 6 seats", "refunded_usd": 0, "chargeback": false },
-        { "invoice_id": "inv_2002", "days_ago": 22, "amount_usd": 174, "description": "Pro monthly, 6 seats (duplicate charge)", "refunded_usd": 0, "chargeback": false },
-        { "invoice_id": "inv_2003", "days_ago": 12, "amount_usd": 1740, "description": "Pro annual upgrade, 6 seats", "refunded_usd": 0, "chargeback": false },
-        { "invoice_id": "inv_2000", "days_ago": 52, "amount_usd": 174, "description": "Pro monthly, 6 seats (previous month)", "refunded_usd": 0, "chargeback": false }
+        {
+          "invoice_id": "inv_2001",
+          "days_ago": 22,
+          "amount_usd": 174,
+          "description": "Pro monthly, 6 seats",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_2002",
+          "days_ago": 22,
+          "amount_usd": 174,
+          "description": "Pro monthly, 6 seats (duplicate charge)",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_2003",
+          "days_ago": 12,
+          "amount_usd": 1740,
+          "description": "Pro annual upgrade, 6 seats",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_2000",
+          "days_ago": 52,
+          "amount_usd": 174,
+          "description": "Pro monthly, 6 seats (previous month)",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_2004",
+          "days_ago": 5,
+          "amount_usd": 29,
+          "description": "Extra seat added mid-month",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_2005",
+          "days_ago": 8,
+          "amount_usd": 58,
+          "description": "Two extra seats added mid-month",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_2006",
+          "days_ago": 15,
+          "amount_usd": 120,
+          "description": "Storage add-on, 200 GB",
+          "refunded_usd": 0,
+          "chargeback": false
+        }
       ]
     },
     {
@@ -40,8 +115,46 @@
       "contract_end_in_days": 219,
       "seats": 140,
       "invoices": [
-        { "invoice_id": "inv_3001", "days_ago": 39, "amount_usd": 650, "description": "Storage overage", "refunded_usd": 0, "chargeback": false },
-        { "invoice_id": "inv_3002", "days_ago": 145, "amount_usd": 48720, "description": "Enterprise annual contract", "refunded_usd": 0, "chargeback": false }
+        {
+          "invoice_id": "inv_3001",
+          "days_ago": 39,
+          "amount_usd": 650,
+          "description": "Storage overage",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_3002",
+          "days_ago": 145,
+          "amount_usd": 48720,
+          "description": "Enterprise annual contract",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_3003",
+          "days_ago": 10,
+          "amount_usd": 420,
+          "description": "API overage",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_3004",
+          "days_ago": 20,
+          "amount_usd": 880,
+          "description": "Premium support add-on",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_3005",
+          "days_ago": 25,
+          "amount_usd": 1500,
+          "description": "Data residency migration fee",
+          "refunded_usd": 0,
+          "chargeback": false
+        }
       ]
     },
     {
@@ -54,7 +167,30 @@
       "contract_end_in_days": -23,
       "seats": 3,
       "invoices": [
-        { "invoice_id": "inv_4001", "days_ago": 22, "amount_usd": 87, "description": "Pro monthly, 3 seats, billed after contract end", "refunded_usd": 0, "chargeback": false }
+        {
+          "invoice_id": "inv_4001",
+          "days_ago": 22,
+          "amount_usd": 87,
+          "description": "Pro monthly, 3 seats, billed after contract end",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_4002",
+          "days_ago": 1,
+          "amount_usd": 29,
+          "description": "Seat charge billed after contract end",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_4003",
+          "days_ago": 40,
+          "amount_usd": 87,
+          "description": "Pro monthly, 3 seats (last active month)",
+          "refunded_usd": 0,
+          "chargeback": false
+        }
       ]
     },
     {
@@ -67,7 +203,30 @@
       "contract_end_in_days": 53,
       "seats": 4,
       "invoices": [
-        { "invoice_id": "inv_5001", "days_ago": 18, "amount_usd": 116, "description": "Pro monthly, 4 seats, payment failed", "refunded_usd": 0, "chargeback": false }
+        {
+          "invoice_id": "inv_5001",
+          "days_ago": 18,
+          "amount_usd": 116,
+          "description": "Pro monthly, 4 seats, payment failed",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_5002",
+          "days_ago": 6,
+          "amount_usd": 29,
+          "description": "Extra seat",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_5003",
+          "days_ago": 12,
+          "amount_usd": 116,
+          "description": "Pro monthly retry charge",
+          "refunded_usd": 0,
+          "chargeback": true
+        }
       ]
     },
     {
@@ -80,7 +239,30 @@
       "contract_end_in_days": 79,
       "seats": 5,
       "invoices": [
-        { "invoice_id": "inv_6001", "days_ago": 13, "amount_usd": 145, "description": "Pro monthly, 5 seats", "refunded_usd": 145, "chargeback": false }
+        {
+          "invoice_id": "inv_6001",
+          "days_ago": 13,
+          "amount_usd": 145,
+          "description": "Pro monthly, 5 seats",
+          "refunded_usd": 145,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_6002",
+          "days_ago": 6,
+          "amount_usd": 145,
+          "description": "Pro monthly, 5 seats (duplicate)",
+          "refunded_usd": 0,
+          "chargeback": false
+        },
+        {
+          "invoice_id": "inv_6003",
+          "days_ago": 3,
+          "amount_usd": 29,
+          "description": "Extra seat",
+          "refunded_usd": 0,
+          "chargeback": false
+        }
       ]
     }
   ]

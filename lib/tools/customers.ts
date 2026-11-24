@@ -59,12 +59,12 @@ export interface DemoUser {
 }
 
 const TRY_THIS: Record<string, string> = {
-  cus_free_maya: "Refund the $12 Storage Pack (inv_1001)",
-  cus_pro_omar: "Refund duplicate inv_2002 ($174), or $900 of annual inv_2003",
-  cus_ent_northbeam: "Refund the $650 overage (inv_3001)",
-  cus_pro_expired_leo: "Refund inv_4001, billed after the contract ended",
+  cus_free_maya: "Refund the $12 Storage Pack (inv_1001 or inv_1002) or the $9 template bundle",
+  cus_pro_omar: "Refund a seat add-on ($29 inv_2004, $58 inv_2005) or the duplicate inv_2002; $900 of annual inv_2003 is over the limit",
+  cus_ent_northbeam: "Refund $650 (inv_3001), $420 (inv_3003) or $880 (inv_3004); $1,500 inv_3005 is over the limit",
+  cus_pro_expired_leo: "Refund a charge billed after the contract ended (inv_4001, inv_4002)",
   cus_pro_suspended_ana: "Ask for any refund on a suspended account",
-  cus_pro_refunded_sam: "Refund inv_6001 again (already refunded)",
+  cus_pro_refunded_sam: "Refund inv_6001 (already refunded) or inv_6002 / inv_6003",
 };
 
 export function demoUsers(): DemoUser[] {
