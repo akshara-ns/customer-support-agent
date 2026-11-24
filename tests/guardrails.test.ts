@@ -82,3 +82,12 @@ describe("injection scan and data framing", () => {
     expect(out.match(/<\/document>/g)).toHaveLength(1);
   });
 });
+
+describe("eval approval heuristic", () => {
+  it("counts real approval claims but not negated ones", async () => {
+    const { claimsApproval } = await import("../evals/lib");
+    expect(claimsApproval("Your refund has been approved.")).toBe(true);
+    expect(claimsApproval("No refund has been issued: the amount exceeds the invoice.")).toBe(false);
+    expect(claimsApproval("I can't approve your refund.")).toBe(false);
+  });
+});

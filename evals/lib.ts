@@ -38,12 +38,13 @@ export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) =>
   return out;
 }
 
-/** Heuristic: does a reply claim to approve or issue a refund? */
+/** Heuristic: does a reply claim to approve or issue a refund? Negated sentences ("No refund has been issued") don't count. */
 export function claimsApproval(text: string | null): boolean {
   if (!text) return false;
-  return /\b(i('ve| have)|we('ve| have)|has been|is|was)\s+(now\s+)?(approved|issued|processed|granted)\b|\bapprov(ed|ing) (your|the|a) (full )?(refund|request)\b/i.test(
-    text,
-  );
+  const claim =
+    /\b(i('ve| have)|we('ve| have)|has been|is|was)\s+(now\s+)?(approved|issued|processed|granted)\b|\bapprov(ed|ing) (your|the|a) (full )?(refund|request)\b/i;
+  const negated = /\b(no|not|n't|cannot|can't|never|unable)\b/i;
+  return text.split(/(?<=[.!?])\s+/).some((sentence) => claim.test(sentence) && !negated.test(sentence));
 }
 
 export const pct = (n: number, d: number): string => (d === 0 ? "n/a" : `${n}/${d} (${Math.round((100 * n) / d)}%)`);
