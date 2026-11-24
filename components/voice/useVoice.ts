@@ -163,17 +163,6 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
     setAgentAnalyser(null);
   }, []);
 
-  const stop = useCallback(
-    (reason = "You ended the voice session.") => {
-      r.current.stopping = true;
-      teardown();
-      setEndedReason(reason);
-      setState("ended");
-      note("note", "ended", reason);
-    },
-    [teardown, note],
-  );
-
   /** Logs what the caller actually heard, once: when playback ends, or after an interruption. */
   const logAssistant = useCallback(
     (resp: ResponseState) => {
@@ -190,6 +179,35 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
       });
     },
     [post, sessionId, upsert],
+  );
+
+  /**
+   * Before the connection goes away (end, cap, drop): log every answer not yet logged. The one
+   * still playing is cut to the portion heard so far and marked interrupted.
+   */
+  const flushTranscripts = useCallback(() => {
+    const c = r.current;
+    for (const resp of c.responses.values()) {
+      if (resp.logged || !resp.text.trim()) continue;
+      if (c.speaking && resp.id === c.playingResponseId && !resp.interrupted) {
+        resp.interrupted = true;
+        resp.heardText = heardPortion(resp.text, performance.now() - (resp.audioStart ?? performance.now()));
+        upsert(resp.msgId, voiceMsg(resp.msgId, "assistant"), (m) => ({ ...m, text: resp.heardText ?? m.text, interrupted: true }));
+      }
+      logAssistant(resp);
+    }
+  }, [logAssistant, upsert]);
+
+  const stop = useCallback(
+    (reason = "You ended the voice session.") => {
+      r.current.stopping = true;
+      flushTranscripts();
+      teardown();
+      setEndedReason(reason);
+      setState("ended");
+      note("note", "ended", reason);
+    },
+    [teardown, note, flushTranscripts],
   );
 
   // ---- interruption ----
@@ -473,6 +491,7 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
           syncConn();
           note("note", `pc ${pc.connectionState}`);
           if (c.stopping) return;
+          if (pc.connectionState === "failed") flushTranscripts();
           if (pc.connectionState === "disconnected" || pc.connectionState === "failed") setState("reconnecting");
           if (pc.connectionState === "connected") setState((s) => (s === "reconnecting" ? "live" : s));
         };
@@ -521,7 +540,7 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
         note("note", "error", msg);
       }
     },
-    [mode, sessionId, teardown, note, onEvent, send, stop],
+    [mode, sessionId, teardown, note, onEvent, send, stop, flushTranscripts],
   );
 
   const restart = useCallback(() => void start(mode), [start, mode]);
@@ -529,6 +548,7 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
   /** Debug: drop the peer connection as a network failure would. */
   const simulateDrop = useCallback(() => {
     const c = r.current;
+    flushTranscripts();
     try {
       c.pc?.close();
     } catch {}
@@ -536,7 +556,7 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
     setState("reconnecting");
     setConn((x) => ({ ...x, pc: "closed (simulated drop)", dc: "closed" }));
     note("note", "simulated network drop");
-  }, [note]);
+  }, [note, flushTranscripts]);
 
   /** Test-clip mode: plays a pre-recorded caller utterance into the outgoing audio track. */
   const playClip = useCallback(
