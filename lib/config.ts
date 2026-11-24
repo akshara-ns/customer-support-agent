@@ -56,6 +56,11 @@ export const GUARDRAILS = {
 
 /** Abuse and cost limits for public endpoints (lib/ratelimit.ts). */
 export const RATE_LIMITS = {
+  /** Every /api/rag/search call (each costs an embedding + a vector query). */
+  ragSearch: [
+    { bucket: "rag_search:ip", scope: "ip", limit: 30, windowSec: 600 },
+    { bucket: "rag_search:daily", scope: "global", limit: 1000, windowSec: 86_400 },
+  ],
   ragAnswer: [
     { bucket: "rag_answer:ip", scope: "ip", limit: 10, windowSec: 600 },
     { bucket: "rag_answer:daily", scope: "global", limit: 200, windowSec: 86_400 },
