@@ -140,3 +140,24 @@ What was done, what was tried and dropped, problems found, AI use.
 
 **AI use**
 - Claude Code (Opus) wrote the fault injection, retries, trace persistence, drawer, stream resume and hardening, and ran all live checks in the built-in browser.
+
+## 2026-11-23 · Block 8.5–9.5: independent reviews + fixes (started 21:48)
+
+**Done**
+- Three subagents reviewed from the outside (grader, security tester, code reviewer), without access to DECISIONS/LOG/REQUIREMENTS/eval results. Findings merged in docs/REVIEW.md.
+- Every critical/major finding was reproduced before fixing: failing unit tests (`tests/review-repro.test.ts`), a live-DB race test (`tests/ledger.int.test.ts`, failed before migration 0007), and a live IDOR script (`scripts/repro-idor.sh`, B read A's data before; 403 after).
+- Fixed: README (critical), one-active-refund-per-invoice (unique index + stale pending retired), cent rounding, session ownership cookie, PIN redaction in the log, per-account lockout, strict credential formats, session-aware claim gate + paraphrases, voice auto-reconnect, lazy/cached health, friendly step text, unknown tool name, dead stubs, CI.
+- X-Forwarded-For spoofing tested live: not exploitable on Vercel (spoofed headers still rate limited); hardened anyway.
+- Tests 90; live scenarios 6/6 with 0 corrections; CI green.
+
+**Problems found**
+- My G3 paraphrase pattern rewrote correct policy text (seen in the live scenario run); narrowed it, with a regression test.
+- The eval's approval heuristic counted "No refund has been issued" as an approval; fixed, with a test.
+- The voice auto-reconnect was cancelled by effect cleanup on re-render (callback identities change each render); scheduled once instead; verified live.
+- Prod data held a stale pending refund next to a succeeded one on the same invoice (left by my phase-5 voice test); migration 0007 retired it before adding the index.
+
+**Design change flagged to the user**
+- Session ownership: an HttpOnly owner cookie now binds each session to the browser that created it (D45). There are still no user accounts; clearing cookies loses access to old conversations.
+
+**AI use**
+- Claude Code (Opus) spawned the three reviewers, reproduced and fixed the findings, and re-verified live.
