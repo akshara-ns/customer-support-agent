@@ -14,7 +14,8 @@
     "eval:guardrails": "tsx --conditions=react-server scripts/eval-guardrails.ts",
     "eval:grounding": "tsx --conditions=react-server scripts/eval-grounding.ts",
     "test": "vitest run",
-    "debug:query": "tsx --conditions=react-server scripts/debug-query.ts"
+    "debug:query": "tsx --conditions=react-server scripts/debug-query.ts",
+    "eval:agent": "tsx --conditions=react-server scripts/eval-agent.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.1",
