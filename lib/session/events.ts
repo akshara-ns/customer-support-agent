@@ -58,8 +58,8 @@ export type ContextMessage =
   | { role: "assistant"; content: string | null; tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string } }[] }
   | { role: "tool"; tool_call_id: string; content: string };
 
-/** Compact tool result for the model: data or the typed error, nothing else. */
-function toolContent(o: ToolOutcome): string {
+/** Compact tool result for the model (chat context and voice function output): data or the typed error, nothing else. */
+export function toolOutputForModel(o: ToolOutcome): string {
   return JSON.stringify(o.result.ok ? { ok: true, data: o.result.data } : { ok: false, error: o.result.error });
 }
 
@@ -120,7 +120,7 @@ export function buildContext(events: StoredEvent[], maxEvents = 60): ContextMess
           content: event.content || null,
           tool_calls: [{ id: event.toolCallId, type: "function", function: { name: event.name, arguments: event.arguments } }],
         });
-        out.push({ role: "tool", tool_call_id: event.toolCallId, content: toolContent(result) });
+        out.push({ role: "tool", tool_call_id: event.toolCallId, content: toolOutputForModel(result) });
         break;
       }
       default:

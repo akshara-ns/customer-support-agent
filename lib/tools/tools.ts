@@ -39,9 +39,6 @@ function asToolError(v: unknown): ToolError {
 
 // ---------- verify_identity ----------
 
-/** @deprecated use ToolEffects from lib/contracts */
-export type VerifyEffects = ToolEffects;
-
 export async function verifyIdentity(
   args: { email: string | null; code: string },
   ctx: ToolContext,

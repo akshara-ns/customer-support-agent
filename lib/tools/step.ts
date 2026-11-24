@@ -58,9 +58,6 @@ export function summarizeOutcome(o: ToolOutcome): string {
 const ticketSummary = (t: Ticket) => ({ ticketNumber: t.ticketNumber, priority: t.priority, responseTarget: t.responseTarget });
 
 /** The model-facing tool output: data or the typed error, nothing else. Same for chat and voice. */
-export function toolOutputForModel(o: ToolOutcome): string {
-  return JSON.stringify(o.result.ok ? { ok: true, data: o.result.data } : { ok: false, error: o.result.error });
-}
 
 export async function runToolStep(a: ToolStepArgs): Promise<{ outcome: ToolOutcome; durationMs: number }> {
   const log = (event: Parameters<EventStore["append"]>[3]) => a.events.append(a.sessionId, a.turnId, a.channel, event);

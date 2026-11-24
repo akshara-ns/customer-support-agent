@@ -29,6 +29,8 @@ export interface AgentModel {
   complete(req: ModelRequest, onText: (delta: string) => void): Promise<ModelTurn>;
 }
 
+const TRANSIENT_CODES: ReadonlySet<string> = new Set(["llm_timeout", "llm_rate_limited", "llm_unavailable"]);
+
 export class ModelError extends Error {
   constructor(
     readonly code: "llm_timeout" | "llm_rate_limited" | "llm_unavailable",
@@ -39,8 +41,8 @@ export class ModelError extends Error {
     super(message);
   }
 
-  /** Timeouts, 429s and 5xx are worth retrying; other errors are not. */
+  /** Timeouts, 429s and 5xx are worth retrying; any other code (if one is added) is not. */
   get transient(): boolean {
-    return true;
+    return TRANSIENT_CODES.has(this.code);
   }
 }

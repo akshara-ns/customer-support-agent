@@ -1,11 +1,11 @@
 /**
  * Voice ↔ backend bridge. Tool calls from the realtime model run through the SAME tool step as
- * chat (lib/agent/tool-step.ts); transcripts and usage go into the same session log and traces.
+ * chat (lib/tools/step.ts); transcripts and usage go into the same session log and traces.
  */
 import { ACTION_CLAIM_TRIGGER, ClaimGate, type ActionChecker } from "@/lib/guardrails/claims";
-import { runToolStep, toolOutputForModel } from "@/lib/tools/step";
+import { runToolStep } from "@/lib/tools/step";
 import { REALTIME_PRICING_PER_MTOK } from "@/lib/config";
-import { actionsForTurn, deriveState, type EventStore } from "@/lib/session/events";
+import { actionsForTurn, deriveState, type EventStore, toolOutputForModel } from "@/lib/session/events";
 import type { ToolDeps } from "@/lib/tools/stores";
 import { Trace } from "@/lib/observability/trace";
 import { redactText } from "@/lib/observability/redact";
