@@ -8,7 +8,7 @@ export const pgTraceWriter: TraceWriter = {
   async write(r) {
     await db()`
       INSERT INTO traces (session_id, turn_id, kind, name, status, started_at, duration_ms, output, tokens_in, tokens_out, tokens_cached, cost_usd, channel)
-      VALUES (${r.sessionId}, ${r.turnId}, ${r.kind}, ${r.name}, 'ok', now(), 0, ${JSON.stringify(redact(r.output))}::jsonb,
+      VALUES (${r.sessionId}, ${r.turnId}, ${r.kind}, ${r.name}, 'ok', now() - make_interval(secs => ${(r.durationMs ?? 0) / 1000}), ${Math.round(r.durationMs ?? 0)}, ${JSON.stringify(redact(r.output))}::jsonb,
               ${r.tokensIn}, ${r.tokensOut}, ${r.tokensCached}, ${r.costUsd}, 'voice')`;
   },
 };

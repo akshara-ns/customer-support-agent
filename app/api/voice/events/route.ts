@@ -28,6 +28,7 @@ const Body = z.object({
       usage: Usage,
       responseId: z.string().max(100).optional(),
       latencyMs: z.number().min(0).max(120_000).optional(),
+      durationMs: z.number().int().min(0).max(600_000).optional(),
     }),
   ]),
 });

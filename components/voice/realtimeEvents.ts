@@ -164,7 +164,15 @@ export async function handleServerEvent(c: VoiceRuntime, raw: string, d: EventDe
         void post<{ costUsd?: number }>("/api/voice/events", {
           sessionId,
           turnId: resp?.turnId ?? c.turnId,
-          event: { kind: "usage", model: c.model, usage: response.usage, responseId: response.id, latencyMs: resp?.latencyMs },
+          event: {
+            kind: "usage",
+            model: c.model,
+            usage: response.usage,
+            responseId: response.id,
+            latencyMs: resp?.latencyMs,
+            // response.created → response.done, so the drawer shows a real duration for the realtime span.
+            durationMs: resp?.createdAt !== undefined ? Math.max(0, Date.now() - resp.createdAt) : undefined,
+          },
         }).then((res) => res?.costUsd && d.setCostUsd((x) => x + (res.costUsd ?? 0)));
       }
       if (resp) {

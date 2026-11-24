@@ -25,6 +25,8 @@ export function estimateCostUsd(u: Usage): number {
 export interface SpanHandle {
   output(value: unknown): void;
   usage(u: Usage): void;
+  /** Marks the span as failed without throwing (e.g. a tool that returned a typed error). */
+  error(type: string): void;
 }
 
 export class Trace {
@@ -62,6 +64,10 @@ export class Trace {
         span.tokensOut = (span.tokensOut ?? 0) + u.tokensOut;
         if (u.cachedTokens) span.tokensCached = (span.tokensCached ?? 0) + u.cachedTokens;
         span.costUsd = (span.costUsd ?? 0) + estimateCostUsd(u);
+      },
+      error: (type) => {
+        span.status = "error";
+        span.error = type;
       },
     };
     try {

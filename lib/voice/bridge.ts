@@ -79,7 +79,7 @@ export function realtimeCostUsd(model: string, u: RealtimeUsage): number {
 export type VoiceEvent =
   | { kind: "user_transcript"; text: string; at?: number }
   | { kind: "assistant_transcript"; text: string; interrupted: boolean; at?: number }
-  | { kind: "usage"; model: string; usage: RealtimeUsage; responseId?: string; latencyMs?: number };
+  | { kind: "usage"; model: string; usage: RealtimeUsage; responseId?: string; latencyMs?: number; durationMs?: number };
 
 export interface TraceWriter {
   write(row: {
@@ -92,6 +92,8 @@ export interface TraceWriter {
     tokensCached: number;
     costUsd: number;
     output: unknown;
+    /** Real duration of what the row describes (0 only for instantaneous notes). */
+    durationMs?: number;
   }): Promise<void>;
 }
 
@@ -136,6 +138,7 @@ export async function recordVoiceEvent(
           turnId,
           kind: "guardrail",
           name: "action_claim_check",
+          durationMs: r.ms ?? 0,
           tokensIn: r.tokensIn ?? 0,
           tokensOut: r.tokensOut ?? 0,
           tokensCached: 0,
@@ -163,6 +166,7 @@ export async function recordVoiceEvent(
     turnId,
     kind: "llm",
     name: `realtime_response:${ev.model}`,
+    durationMs: ev.durationMs ?? 0,
     tokensIn: ev.usage.input_tokens ?? 0,
     tokensOut: ev.usage.output_tokens ?? 0,
     tokensCached: ev.usage.input_token_details?.cached_tokens ?? 0,

@@ -87,6 +87,8 @@ export async function runToolStep(a: ToolStepArgs): Promise<{ outcome: ToolOutco
     ? await a.trace.span("tool", a.call.name, redacted, async (s) => {
         const o = await run();
         s.output(o.result);
+        // A typed tool error (refused refund, failed verification…) shows as an error span with its code.
+        if (!o.result.ok) s.error(o.result.error.code);
         return o;
       })
     : await run();
