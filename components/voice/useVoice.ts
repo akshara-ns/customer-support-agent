@@ -38,6 +38,8 @@ interface ResponseState {
   text: string;
   itemId?: string;
   audioStart?: number;
+  /** Caller stopped speaking → agent audio started. */
+  latencyMs?: number;
   firstDeltaAt?: number;
   interrupted: boolean;
   heardText?: string;
@@ -69,7 +71,18 @@ function heardPortion(text: string, heardMs: number): string {
 
 const uuid = () => crypto.randomUUID();
 
-export function useVoice({ sessionId, upsert, debug = false }: { sessionId: string | null; upsert: Upsert; debug?: boolean }) {
+export function useVoice({
+  sessionId,
+  upsert,
+  debug = false,
+  takeFault,
+}: {
+  sessionId: string | null;
+  upsert: Upsert;
+  debug?: boolean;
+  /** One-shot demo fault for the next voice tool call (from the trace drawer). */
+  takeFault?: () => string | null;
+}) {
   const [state, setState] = useState<VoiceState>("idle");
   const [mode, setMode] = useState<MicMode>("mic");
   const [elapsed, setElapsed] = useState(0);
@@ -103,6 +116,7 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
     speaking: false,
     handledCalls: new Set<string>(),
     lastClipAt: null as number | null,
+    lastSpeechStoppedAt: null as number | null,
     model: "",
   });
 
@@ -264,7 +278,8 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
         applyAgentEvent(m, { type: "step_started", stepId, tool: name, label: TOOL_LABELS[name] ?? name }),
       );
       note("note", `tool → ${name}`);
-      const p = post<{ output: string; events: AgentEvent[] }>("/api/voice/tool", { sessionId, turnId, callId, name, arguments: args }).then((res) => {
+      const simulate = takeFault?.() ?? undefined;
+      const p = post<{ output: string; events: AgentEvent[] }>("/api/voice/tool", { sessionId, turnId, callId, name, arguments: args, simulate }).then((res) => {
         for (const e of res?.events ?? []) upsert(msgId, voiceMsg(msgId, "assistant"), (m) => applyAgentEvent(m, e));
         const output =
           res?.output ??
@@ -274,7 +289,7 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
       });
       resp?.calls.push(p);
     },
-    [post, sessionId, upsert, note],
+    [post, sessionId, upsert, note, takeFault],
   );
 
   // ---- server events ----
@@ -337,12 +352,21 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
           upsert(resp.msgId, voiceMsg(resp.msgId, "assistant"), (m) => ({ ...m, text: resp.text, streaming: true }));
           break;
         }
+        case "input_audio_buffer.speech_stopped":
+          c.lastSpeechStoppedAt = performance.now();
+          break;
         case "output_audio_buffer.started": {
           c.speaking = true;
           const rid = String(ev.response_id ?? c.activeResponseId);
           c.playingResponseId = rid;
           const resp = c.responses.get(rid);
-          if (resp) resp.audioStart ??= performance.now();
+          if (resp) {
+            resp.audioStart ??= performance.now();
+            if (resp.latencyMs === undefined && c.lastSpeechStoppedAt !== null) {
+              resp.latencyMs = Math.round(resp.audioStart - c.lastSpeechStoppedAt);
+              c.lastSpeechStoppedAt = null;
+            }
+          }
           break;
         }
         case "output_audio_buffer.stopped":
@@ -387,7 +411,7 @@ export function useVoice({ sessionId, upsert, debug = false }: { sessionId: stri
             void post<{ costUsd?: number }>("/api/voice/events", {
               sessionId,
               turnId: resp?.turnId ?? c.turnId,
-              event: { kind: "usage", model: c.model, usage: response.usage, responseId: response.id },
+              event: { kind: "usage", model: c.model, usage: response.usage, responseId: response.id, latencyMs: resp?.latencyMs },
             }).then((res) => res?.costUsd && setCostUsd((x) => x + (res.costUsd ?? 0)));
           }
           if (resp) {

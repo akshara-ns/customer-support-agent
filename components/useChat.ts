@@ -18,9 +18,11 @@ export interface ChatMessage {
   text: string;
   steps: Step[];
   escalation?: { kind: "ticket" | "suggested"; reason: string; ticket?: TicketSummary };
-  error?: { code: ErrorCode; message: string; retryable: boolean };
+  error?: { code: ErrorCode; message: string; retryable: boolean; tool?: string };
+  /** Shown while the server retries a transient model error. */
+  retrying?: { attempt: number; attempts: number; reason: ErrorCode };
   streaming?: boolean;
-  totals?: { durationMs: number; tokensIn: number; tokensOut: number; costUsd: number };
+  totals?: { durationMs: number; tokensIn: number; tokensOut: number; costUsd: number; ttftMs?: number };
   spans?: TraceSpan[];
   channel?: "chat" | "voice";
   /** Voice: the caller interrupted; text shows only what was (approximately) heard. */
@@ -44,7 +46,9 @@ export function applyAgentEvent(m: ChatMessage, e: AgentEvent): ChatMessage {
     case "escalation":
       return { ...m, escalation: { kind: e.kind, reason: e.reason, ticket: e.ticket } };
     case "error":
-      return { ...m, error: { code: e.code, message: e.message, retryable: e.retryable } };
+      return { ...m, error: { code: e.code, message: e.message, retryable: e.retryable, tool: e.tool } };
+    case "retrying":
+      return { ...m, retrying: { attempt: e.attempt, attempts: e.attempts, reason: e.reason } };
     default:
       return m;
   }
@@ -104,6 +108,8 @@ export function useChat() {
   const sessionId = useSyncExternalStore(sessionStore.subscribe, sessionStore.get, () => null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
+  /** Increments after every finished turn, so the trace drawer knows to refresh. */
+  const [turnVersion, setTurnVersion] = useState(0);
   const lastUserText = useRef<string>("");
 
   // Restore the transcript for this session (after a reload or a new conversation).
@@ -148,7 +154,7 @@ export function useChat() {
     setMessages((ms) => ms.map((m) => (m.id === id ? fn(m) : m)));
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, simulate?: string | null) => {
       if (!sessionId || busy || !text.trim()) return;
       lastUserText.current = text;
       setBusy(true);
@@ -162,7 +168,7 @@ export function useChat() {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, message: text }),
+          body: JSON.stringify({ sessionId, message: text, ...(simulate ? { simulate } : {}) }),
         });
         if (!res.ok || !res.body) {
           const body = (await res.json().catch(() => ({}))) as { message?: string };
@@ -177,7 +183,10 @@ export function useChat() {
         for await (const e of readSse(res.body)) {
           switch (e.type) {
             case "token":
-              update(assistantId, (m) => ({ ...m, text: m.text + e.text }));
+              update(assistantId, (m) => ({ ...m, text: m.text + e.text, retrying: undefined }));
+              break;
+            case "retrying":
+              update(assistantId, (m) => applyAgentEvent(m, e));
               break;
             case "step_started":
             case "step_completed":
@@ -189,7 +198,7 @@ export function useChat() {
               update(assistantId, (m) => ({ ...m, spans: [...(m.spans ?? []), e.span] }));
               break;
             case "done":
-              update(assistantId, (m) => ({ ...m, streaming: false, totals: e.totals }));
+              update(assistantId, (m) => ({ ...m, streaming: false, totals: e.totals, retrying: undefined }));
               break;
           }
         }
@@ -199,8 +208,9 @@ export function useChat() {
           error: { code: "internal", message: "Connection lost. Check your network and retry.", retryable: true },
         }));
       } finally {
-        update(assistantId, (m) => ({ ...m, streaming: false }));
+        update(assistantId, (m) => ({ ...m, streaming: false, retrying: undefined }));
         setBusy(false);
+        setTurnVersion((v) => v + 1);
       }
     },
     [sessionId, busy],
@@ -218,5 +228,5 @@ export function useChat() {
     sessionStore.rotate();
   }, []);
 
-  return { sessionId, messages, busy, send, retry, reset, upsert };
+  return { sessionId, messages, busy, send, retry, reset, upsert, turnVersion };
 }

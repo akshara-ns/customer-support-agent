@@ -5,6 +5,29 @@ import { useChat, type ChatMessage, type Step } from "@/components/useChat";
 import { VoiceBar } from "@/components/voice/VoiceBar";
 import { VoiceDebugPanel } from "@/components/voice/VoiceDebugPanel";
 import { useVoice } from "@/components/voice/useVoice";
+import { TraceDrawer } from "@/components/TraceDrawer";
+
+/** A distinct, friendly state per failure type, with the actions that make sense for it. */
+function errorCopy(code: string, tool?: string): { text: string; actions: ("retry" | "refund_again" | "ticket")[] } {
+  switch (code) {
+    case "llm_timeout":
+      return { text: "The assistant took too long to respond. Nothing was changed.", actions: ["retry"] };
+    case "llm_rate_limited":
+      return { text: "The assistant is busy right now (rate limited). Please retry in a moment.", actions: ["retry"] };
+    case "llm_unavailable":
+      return { text: "The assistant is unavailable right now. Nothing was changed.", actions: ["retry"] };
+    case "tool_failed":
+      return tool === "issue_refund"
+        ? { text: "Couldn't complete the refund; nothing was refunded. You can try again safely, or I can open a ticket.", actions: ["refund_again", "ticket"] }
+        : { text: "A step couldn't be completed. Nothing was changed.", actions: ["retry", "ticket"] };
+    case "retrieval_unavailable":
+      return { text: "The knowledge base is temporarily unavailable, so I can't look that up right now.", actions: ["retry", "ticket"] };
+    case "rate_limited":
+      return { text: "You're sending messages too quickly. Please wait a moment.", actions: ["retry"] };
+    default:
+      return { text: "Something went wrong on our side.", actions: ["retry"] };
+  }
+}
 
 function StepRow({ step }: { step: Step }) {
   return (
@@ -44,8 +67,21 @@ function EscalationCard({ m, onCreate }: { m: ChatMessage; onCreate: () => void 
 }
 
 export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
-  const { sessionId, messages, busy, send, retry, reset, upsert } = useChat();
-  const voice = useVoice({ sessionId, upsert, debug: voiceDebug });
+  const { sessionId, messages, busy, send, retry, reset, upsert, turnVersion } = useChat();
+  const [fault, setFault] = useState("");
+  const faultRef = useRef("");
+  const chooseFault = (f: string) => {
+    faultRef.current = f;
+    setFault(f);
+  };
+  /** One-shot: the selected fault applies to the next turn / voice tool call only. */
+  const takeFault = () => {
+    const f = faultRef.current || null;
+    if (f) chooseFault("");
+    return f;
+  };
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const voice = useVoice({ sessionId, upsert, debug: voiceDebug, takeFault });
   const [voiceOpen, setVoiceOpen] = useState(voiceDebug);
   const voiceActive = voice.state === "live" || voice.state === "connecting" || voice.state === "reconnecting";
   const [draft, setDraft] = useState("");
@@ -59,10 +95,11 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
     const text = draft.trim();
     if (!text) return;
     setDraft("");
-    void send(text);
+    void send(text, takeFault());
   };
 
   return (
+    <>
     <section className="chat" aria-label="Support chat">
       <header className="chat-header">
         <div>
@@ -82,6 +119,9 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
             aria-pressed={voiceOpen}
           >
             {voiceOpen ? "Voice on" : "Voice"}
+          </button>
+          <button type="button" className={drawerOpen ? "" : "secondary"} onClick={() => setDrawerOpen((o) => !o)} aria-pressed={drawerOpen}>
+            Trace{fault ? " ⚠" : ""}
           </button>
           <button type="button" className="secondary" onClick={reset} disabled={busy || voiceActive}>
             New conversation
@@ -122,19 +162,40 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
               </div>
             )}
             <EscalationCard m={m} onCreate={() => void send("Please create an escalation ticket so a human can help with this.")} />
-            {m.error && (
-              <div className="error-banner" role="alert">
-                <span>{m.error.message}</span>
-                {m.error.retryable && !busy && (
-                  <button type="button" onClick={() => void retry()}>
-                    Retry
-                  </button>
-                )}
+            {m.retrying && (
+              <div className="retry-banner small" role="status">
+                <span className="spinner" /> The assistant is busy, retrying… (attempt {m.retrying.attempt} of {m.retrying.attempts}
+                {m.retrying.reason === "llm_rate_limited" ? ", rate limited" : m.retrying.reason === "llm_timeout" ? ", timed out" : ""})
               </div>
             )}
+            {m.error &&
+              (() => {
+                const c = errorCopy(m.error.code, m.error.tool);
+                return (
+                  <div className={`error-banner error-${m.error.code}`} role="alert">
+                    <span>{c.text}</span>
+                    {!busy && !voiceActive && c.actions.includes("retry") && m.error.retryable && (
+                      <button type="button" onClick={() => void retry()}>
+                        Retry
+                      </button>
+                    )}
+                    {!busy && !voiceActive && c.actions.includes("refund_again") && (
+                      <button type="button" onClick={() => void send("Please try the refund again.")}>
+                        Try the refund again
+                      </button>
+                    )}
+                    {!busy && !voiceActive && c.actions.includes("ticket") && (
+                      <button type="button" className="secondary" onClick={() => void send("Please open an escalation ticket for this.")}>
+                        Open a ticket
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             {m.totals && m.role === "assistant" && (
               <p className="meta muted small">
-                {(m.totals.durationMs / 1000).toFixed(1)}s · {m.totals.tokensIn + m.totals.tokensOut} tokens · ${m.totals.costUsd.toFixed(4)}
+                {(m.totals.durationMs / 1000).toFixed(1)}s{m.totals.ttftMs !== undefined ? ` · first token ${(m.totals.ttftMs / 1000).toFixed(1)}s` : ""} ·{" "}
+                {m.totals.tokensIn + m.totals.tokensOut} tokens · est. ${m.totals.costUsd.toFixed(4)}
               </p>
             )}
           </div>
@@ -162,5 +223,16 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
         </button>
       </form>
     </section>
+    {drawerOpen && (
+      <TraceDrawer
+        sessionId={sessionId}
+        refreshKey={turnVersion}
+        fault={fault}
+        onFault={chooseFault}
+        onClose={() => setDrawerOpen(false)}
+        live={voiceActive}
+      />
+    )}
+    </>
   );
 }

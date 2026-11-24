@@ -221,3 +221,38 @@ details summary { cursor: pointer; }
 .clip-row button { padding: 4px 10px; font-size: 12px; }
 .event-log { list-style: none; font-size: 11px; max-height: 160px; overflow-y: auto; }
 main.layout-single { grid-template-columns: minmax(0, 1fr); max-width: 980px; }
+
+
+/* ---- resilience + drawer ---- */
+.retry-banner { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, #f59e0b 15%, transparent); border: 1px solid #f59e0b; }
+.error-banner { flex-wrap: wrap; }
+.small-btn { padding: 4px 10px; font-size: 12px; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); z-index: 20;
+  display: flex; flex-direction: column; overflow-y: auto;
+  background: var(--background); border-left: 1px solid color-mix(in srgb, var(--foreground) 20%, transparent);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.25);
+}
+.drawer-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); position: sticky; top: 0; background: var(--background); z-index: 1; }
+.drawer-section { padding: 10px 14px; border-bottom: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent); display: flex; flex-direction: column; gap: 6px; }
+.drawer-section select { display: block; width: 100%; margin-top: 4px; font: inherit; padding: 6px; border-radius: 6px; background: transparent; color: inherit; border: 1px solid color-mix(in srgb, var(--foreground) 25%, transparent); }
+.drawer-section pre, .span-detail pre { white-space: pre-wrap; word-break: break-word; font-size: 11px; max-height: 260px; overflow: auto; background: color-mix(in srgb, var(--foreground) 5%, transparent); padding: 6px; border-radius: 6px; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-family: var(--font-geist-mono), monospace; font-size: 12px; }
+.drawer-turns { padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+.turn-card { border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent); border-radius: 10px; overflow: hidden; }
+.turn-head { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: color-mix(in srgb, var(--foreground) 5%, transparent); color: inherit; border-radius: 0; text-align: left; }
+.turn-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.guardrails { list-style: none; padding-left: 8px; font-size: 11px; }
+.span-tree, .span-tree ul { list-style: none; }
+.span-row { width: 100%; display: grid; grid-template-columns: 1fr 120px 56px; gap: 6px; align-items: center; padding: 2px 4px; background: transparent; color: inherit; border-radius: 4px; font-size: 12px; text-align: left; }
+.span-row:hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
+.span-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.span-name .kind { font-size: 10px; text-transform: uppercase; opacity: 0.6; }
+.span-bar { position: relative; height: 8px; background: color-mix(in srgb, var(--foreground) 6%, transparent); border-radius: 4px; }
+.span-bar span { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: #2563eb; }
+.span-tool .span-bar span { background: #16a34a; }
+.span-guardrail .span-bar span { background: #f59e0b; }
+.span-retrieval .span-bar span { background: #7c3aed; }
+.span-err .span-bar span { background: #dc2626; }
+.span-ms { font-family: var(--font-geist-mono), monospace; font-size: 11px; text-align: right; opacity: 0.8; }
+.span-detail { font-size: 11px; padding: 4px 8px 6px 24px; display: flex; flex-direction: column; gap: 4px; }
