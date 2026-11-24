@@ -94,6 +94,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
     failedVerifications: prior.failedVerifications,
     lastVerifyEmail: prior.lastVerifyEmail,
     clientKey: input.clientKey,
+    customerMessages: [...history.flatMap(({ event }) => (event.type === "user_message" ? [event.text] : [])), input.message],
+    requireNamedInvoice: channel === "chat",
     trace,
     refundRequested:
       REFUND_INTENT.test(input.message) || history.some(({ event }) => event.type === "user_message" && REFUND_INTENT.test(event.text)),

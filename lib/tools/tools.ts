@@ -9,7 +9,9 @@ import {
   MAX_FAILED_VERIFICATIONS,
   MAX_SOURCE_FAILURES,
   PENDING_REFUND_EXPIRY_SEC,
+  eligibleInvoices,
   evaluateRefund,
+  requestedInvoices,
   refundDeadline,
   responseTarget,
   ticketPriority,
@@ -196,6 +198,30 @@ export async function issueRefund(
   if (!record) return fail({ code: "NOT_VERIFIED", message: "The verified account could not be found.", retryable: false });
   const current = { customerId: record.customerId, tier: record.tier, contractStatus: record.contractStatus };
   const invoice = record.invoices.find((i) => i.invoiceId === input.invoice_id);
+
+  // The refunded invoice must be the one the customer asked about; the model never picks one for them.
+  if (ctx.customerMessages) {
+    const asked = requestedInvoices(ctx.customerMessages, record.invoices);
+    if (asked && !asked.has(input.invoice_id)) {
+      return fail({
+        code: "INVOICE_MISMATCH",
+        message: `Invoice ${input.invoice_id} doesn't match the customer's request (they asked about ${[...asked].join(" or ")}). Confirm the invoice with them; nothing was refunded.`,
+        retryable: false,
+      });
+    }
+    if (!asked && ctx.requireNamedInvoice) {
+      const ledgerRefunded = await Promise.all(record.invoices.map(async (i) => [i.invoiceId, await deps.ledger.refundedUsd(record.customerId, i.invoiceId)] as const));
+      const refunded = new Map(ledgerRefunded);
+      const eligible = eligibleInvoices(record.invoices, record.tier, deps.now(), (i) => i.refundedUsd + (refunded.get(i.invoiceId) ?? 0));
+      if (eligible.length > 1) {
+        return fail({
+          code: "INVOICE_AMBIGUOUS",
+          message: `The customer hasn't said which invoice, and ${eligible.length} are eligible. Ask which one (invoice id, amount or what the charge was for); nothing was refunded.`,
+          retryable: false,
+        });
+      }
+    }
+  }
   const amountCents = Math.round(input.amount_usd * 100);
   const key = hash("refund", ctx.sessionId, input.invoice_id, amountCents);
 

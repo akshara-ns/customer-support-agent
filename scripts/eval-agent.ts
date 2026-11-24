@@ -89,6 +89,14 @@ const SCENARIOS: Scenario[] = [
     allowedRefunds: [],
     expectTicket: false,
   },
+  {
+    id: "S7",
+    title: "Refund only the invoice the customer asked about (after a failed PIN)",
+    turns: ["My email is omar@example.com and my PIN is 111111. Refund inv_2001.", "omar@example.com / 715204", "Yes, go ahead with that refund."],
+    expectChain: ["verify_identity", "verify_identity", "issue_refund"],
+    allowedRefunds: ["inv_2001:174"],
+    expectTicket: false,
+  },
 ];
 
 function inOrder(called: string[], expected: string[]): boolean {

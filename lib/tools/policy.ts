@@ -139,3 +139,46 @@ export function responseTarget(tier: Tier | null, priority: "P1" | "P2" | "P3"):
   if (tier === "pro") return "1 business day";
   return "3 business days";
 }
+
+/** Description words too common to identify an invoice. */
+const GENERIC_WORDS = new Set(["free", "enterprise", "plan", "monthly", "month", "added", "charge", "charges", "charged", "invoice", "previous", "refund"]);
+const words = (s: string) => new Set(s.toLowerCase().match(/[a-z]{4,}/g) ?? []);
+
+/** Invoices one customer message points at: an id, else a uniquely matching amount, else distinctive description words. */
+function invoicesNamedIn(text: string, invoices: Invoice[]): Invoice[] {
+  const lower = text.toLowerCase();
+  const ids = new Set([...lower.matchAll(/\binv_\d+\b/g)].map((m) => m[0]));
+  const byId = invoices.filter((i) => ids.has(i.invoiceId.toLowerCase()));
+  if (byId.length) return byId;
+  const amounts = [...text.matchAll(/\$\s?(\d[\d,]*(?:\.\d{1,2})?)/g)].map((m) => Number(m[1].replace(/,/g, "")));
+  let candidates = invoices;
+  let narrowed = false;
+  const byAmount = invoices.filter((i) => amounts.some((a) => Math.abs(a - i.amountUsd) < 0.005));
+  if (byAmount.length) {
+    candidates = byAmount;
+    narrowed = true;
+  }
+  const said = words(text);
+  const score = (i: Invoice) => [...words(i.description)].filter((w) => !GENERIC_WORDS.has(w) && said.has(w)).length;
+  const best = Math.max(0, ...candidates.map(score));
+  if (best > 0) {
+    candidates = candidates.filter((i) => score(i) === best);
+    narrowed = true;
+  }
+  return narrowed ? candidates : [];
+}
+
+/**
+ * The invoices the customer asked about in this conversation (union over their messages), or null if
+ * they never pointed at one. issue_refund refuses any other invoice (INVOICE_MISMATCH).
+ */
+export function requestedInvoices(customerMessages: string[], invoices: Invoice[]): Set<string> | null {
+  const named = new Set(customerMessages.flatMap((m) => invoicesNamedIn(m, invoices).map((i) => i.invoiceId)));
+  return named.size ? named : null;
+}
+
+/** Invoices a refund could still apply to (not fully refunded, inside the tier's window). */
+export function eligibleInvoices(invoices: Invoice[], tier: Tier, now: Date, refundedUsd: (i: Invoice) => number): Invoice[] {
+  const today = now.toISOString().slice(0, 10);
+  return invoices.filter((i) => refundedUsd(i) < i.amountUsd && refundDeadline(i, tier) >= today && !i.chargeback);
+}

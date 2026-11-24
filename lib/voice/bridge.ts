@@ -29,7 +29,11 @@ export async function runVoiceTool(
   await deps.events.ensureSession(req.sessionId);
   // No refundRequested check in voice: the caller's transcript is posted asynchronously and can arrive
   // after the tool call, so the check would race (refusing real spoken requests). Chat enforces it.
-  const state = deriveState(await deps.events.list(req.sessionId));
+  const log = await deps.events.list(req.sessionId);
+  const state = deriveState(log);
+  // Invoice check from the caller's transcripts logged so far. They are posted by the browser and can
+  // lag the tool call, so only a mismatch with an invoice already named is refused (no "ask which" rule).
+  const spoken = log.flatMap(({ event }) => (event.type === "user_message" ? [event.text] : []));
   const emitted: AgentEvent[] = [];
   const trace = new Trace(req.turnId);
   const { outcome } = await runToolStep({
@@ -38,7 +42,7 @@ export async function runVoiceTool(
     channel: "voice",
     stepId: `${req.turnId}:${req.callId}`,
     call: { id: req.callId, name: req.name, arguments: req.arguments },
-    ctx: { sessionId: req.sessionId, turnId: req.turnId, customer: state.customer, failedVerifications: state.failedVerifications, lastVerifyEmail: state.lastVerifyEmail, clientKey: deps.clientKey, trace },
+    ctx: { sessionId: req.sessionId, turnId: req.turnId, customer: state.customer, failedVerifications: state.failedVerifications, lastVerifyEmail: state.lastVerifyEmail, clientKey: deps.clientKey, customerMessages: spoken.length ? spoken : undefined, trace },
     deps: deps.tools,
     events: deps.events,
     emit: (e) => emitted.push(e),

@@ -56,4 +56,11 @@ export interface ToolContext {
   lastVerifyEmail?: string | null;
   /** Hashed client IP (from the route), for per-client PIN lockout; falls back to the session id. */
   clientKey?: string;
+  /**
+   * The customer's own messages in this conversation (chat; voice: transcripts logged so far), so
+   * issue_refund can check the invoice is the one they asked about. Undefined skips the check.
+   */
+  customerMessages?: string[];
+  /** Chat only: refuse when the customer named no invoice and several are eligible (voice transcripts may lag). */
+  requireNamedInvoice?: boolean;
 }
