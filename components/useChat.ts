@@ -102,7 +102,8 @@ export function useChat() {
             };
           }
         }
-        if (!cancelled) setMessages(restored);
+        // Only fill an empty list: a message sent while this request was in flight must not be overwritten.
+        if (!cancelled) setMessages((prev) => (prev.length === 0 ? restored : prev));
       })
       .catch(() => {});
     return () => {
