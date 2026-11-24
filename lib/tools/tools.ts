@@ -181,8 +181,11 @@ export async function issueRefund(
     return fail({ code: "REFUND_NOT_REQUESTED", message: "The customer hasn't asked for a refund in this conversation. Ask what they need instead.", retryable: false });
   }
 
+  // Authorize against the account as it is now: tier and contract may have changed since verification.
   const record = deps.customers.get(customer.customerId);
-  const invoice = record?.invoices.find((i) => i.invoiceId === input.invoice_id);
+  if (!record) return fail({ code: "NOT_VERIFIED", message: "The verified account could not be found.", retryable: false });
+  const current = { customerId: record.customerId, tier: record.tier, contractStatus: record.contractStatus };
+  const invoice = record.invoices.find((i) => i.invoiceId === input.invoice_id);
   const amountCents = Math.round(input.amount_usd * 100);
   const key = hash("refund", ctx.sessionId, input.invoice_id, amountCents);
 
@@ -220,7 +223,7 @@ export async function issueRefund(
   }
 
   const alreadyRefundedUsd = (invoice?.refundedUsd ?? 0) + (await deps.ledger.refundedUsd(customer.customerId, input.invoice_id));
-  const violation = evaluateRefund({ customer, invoice, amountUsd: input.amount_usd, alreadyRefundedUsd, now: deps.now() });
+  const violation = evaluateRefund({ customer: current, invoice, amountUsd: input.amount_usd, alreadyRefundedUsd, now: deps.now() });
   if (violation) {
     if (violation.escalationRequired && violation.suggestedEscalation) {
       // Policy requires a human here (billing error, suspension, chargeback): open the ticket in code.
