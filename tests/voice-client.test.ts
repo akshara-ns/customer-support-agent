@@ -134,18 +134,33 @@ describe("activity indicator", () => {
     await ev({ type: "input_audio_buffer.speech_stopped" });
     await ev({ type: "response.created", response: { id: "r9" } });
     await ev({ type: "output_audio_buffer.started", response_id: "r9" });
+    await ev({ type: "response.done", response: { id: "r9", status: "completed" } });
     await ev({ type: "output_audio_buffer.stopped", response_id: "r9" });
-    expect(seen).toEqual(["listening", "thinking", "thinking", "speaking", "listening"]);
+    expect(seen).toEqual(["listening", "thinking", "thinking", "speaking", "speaking", "listening"]);
     expect(c.speaking).toBe(false);
   });
 
-  it("stays on thinking while a tool call runs", async () => {
-    const { c, deps, ev } = harness();
+  it("live sequence: a tool call during playback, then one buffer stop naming the first response → listening", async () => {
+    const { deps, ev } = harness();
     const seen: string[] = [];
     deps.setActivity = (a) => void seen.push(a);
+    await ev({ type: "response.created", response: { id: "r1" } });
+    await ev({ type: "output_audio_buffer.started", response_id: "r1" });
+    await ev({ type: "response.function_call_arguments.done", call_id: "c1", name: "verify_identity", arguments: "{}", response_id: "r1" });
+    await ev({ type: "response.done", response: { id: "r1", status: "completed" } }); // tool output sent, response.create sent
+    await ev({ type: "response.created", response: { id: "r2" } });
+    await ev({ type: "response.done", response: { id: "r2", status: "completed" } });
+    await ev({ type: "output_audio_buffer.stopped", response_id: "r1" });
+    expect(seen.at(-1)).toBe("listening");
+  });
+
+  it("shows thinking while a tool runs with nothing playing", async () => {
+    const { c, ev } = harness();
+    const { activityOf } = await import("@/components/voice/realtimeEvents");
     responding(c, "");
     await ev({ type: "response.function_call_arguments.done", call_id: "c9", name: "get_policy", arguments: "{}", response_id: "r1" });
-    expect(seen.at(-1)).toBe("thinking");
+    c.activeResponseId = null; // response.done arrived; the tool result is still pending
+    expect(activityOf(c)).toBe("thinking");
   });
 });
 

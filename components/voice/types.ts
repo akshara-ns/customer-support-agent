@@ -40,6 +40,8 @@ export interface ResponseState {
   truncateConfirmed: boolean;
   logged: boolean;
   calls: Promise<{ callId: string; output: string }>[];
+  /** Tool outputs for this response were sent back to the model (or abandoned). */
+  toolsReturned?: boolean;
 }
 
 export type Upsert = (id: string, make: () => ChatMessage, fn: (m: ChatMessage) => ChatMessage) => void;
