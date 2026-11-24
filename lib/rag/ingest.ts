@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { CHUNKING, MODELS } from "@/lib/config";
 import { db } from "@/lib/db/client";
-import { scanForInjection } from "@/lib/guardrails/injection";
+import { DETECTOR_VERSION, scanForInjection } from "@/lib/guardrails/injection";
 import { embeddingText } from "@/lib/rag/chunker";
 import { loadCorpus } from "@/lib/rag/corpus";
 import { embed, toVectorLiteral } from "@/lib/rag/embed";
@@ -50,7 +50,7 @@ export async function ingestCorpus(): Promise<IngestReport> {
     for (const f of flagged) if (f.flags.length) report.quarantined.push({ chunkKey: f.chunk.chunkKey, flags: f.flags });
 
     const hash = createHash("sha256")
-      .update(JSON.stringify({ raw, chunking: CHUNKING, model: MODELS.embedding }))
+      .update(JSON.stringify({ raw, chunking: CHUNKING, model: MODELS.embedding, detector: DETECTOR_VERSION }))
       .digest("hex");
     if (existing.get(doc.id) === hash) {
       report.skippedDocs.push(doc.id);
