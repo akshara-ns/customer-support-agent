@@ -3,6 +3,7 @@
  * result. Policy checks happen here, in code; nothing the model says can skip them.
  */
 import { createHash } from "node:crypto";
+import { activeFault } from "@/lib/faults";
 import {
   MAX_FAILED_VERIFICATIONS,
   evaluateRefund,
@@ -194,6 +195,9 @@ export async function issueRefund(
     arrivesIn: "5-10 business days",
     replayed: false,
   };
+  // Simulated processor crash AFTER the request was recorded (ledger entry stays pending).
+  // A retry with the same key resumes this entry, so it can never refund twice.
+  if (activeFault() === "tool_failure") throw new Error("Simulated payment processor failure after the request was recorded");
   // Acknowledge only once the ledger says succeeded. If this write fails, the caller sees a failure.
   await deps.ledger.complete(key, "succeeded", receipt);
   return { ok: true, data: receipt };

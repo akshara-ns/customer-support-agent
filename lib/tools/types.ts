@@ -16,7 +16,8 @@ export type ToolErrorCode =
   | "AMOUNT_EXCEEDS_INVOICE"
   | "OUTSIDE_REFUND_WINDOW"
   | "OVER_TIER_LIMIT"
-  | "TOOL_FAILURE";
+  | "TOOL_FAILURE"
+  | "SERVICE_UNAVAILABLE";
 
 export type TicketReason =
   | "refund_over_limit"

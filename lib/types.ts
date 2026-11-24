@@ -22,6 +22,7 @@ export type ErrorCode =
   | "llm_rate_limited"
   | "llm_unavailable"
   | "tool_failed"
+  | "retrieval_unavailable"
   | "rate_limited"
   | "invalid_request"
   | "internal";
@@ -38,13 +39,14 @@ export type AgentEvent =
   | { type: "step_completed"; stepId: string; tool: string; label: string; ok: boolean; durationMs: number; summary: string }
   | { type: "token"; text: string }
   | { type: "escalation"; kind: "ticket" | "suggested"; reason: string; ticket?: TicketSummary }
-  | { type: "error"; code: ErrorCode; message: string; retryable: boolean }
+  | { type: "error"; code: ErrorCode; message: string; retryable: boolean; tool?: string }
+  | { type: "retrying"; attempt: number; attempts: number; delayMs: number; reason: ErrorCode }
   | { type: "trace"; span: TraceSpan }
   | {
       type: "done";
       turnId: string;
       state: "completed" | "escalated" | "failed";
-      totals: { durationMs: number; tokensIn: number; tokensOut: number; costUsd: number };
+      totals: { durationMs: number; tokensIn: number; tokensOut: number; costUsd: number; ttftMs?: number };
     };
 
 export type SseEvent = AgentEvent & { seq: number };
@@ -64,6 +66,7 @@ export interface TraceSpan {
   durationMs: number;
   tokensIn?: number;
   tokensOut?: number;
+  tokensCached?: number;
   costUsd?: number;
   input?: unknown;
   output?: unknown;
@@ -127,6 +130,8 @@ export interface DbHealth {
 export interface HealthResponse {
   status: "ok" | "error";
   db: DbHealth;
+  embeddings?: { ok: boolean; latencyMs: number; error?: string };
+  llm?: { ok: boolean; latencyMs: number; error?: string };
   commit: string | null;
   time: string;
 }

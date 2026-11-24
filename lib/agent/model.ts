@@ -33,7 +33,14 @@ export class ModelError extends Error {
   constructor(
     readonly code: "llm_timeout" | "llm_rate_limited" | "llm_unavailable",
     message: string,
+    /** From Retry-After / retry-after-ms when the provider sent one. */
+    readonly retryAfterMs?: number,
   ) {
     super(message);
+  }
+
+  /** Timeouts, 429s and 5xx are worth retrying; other errors are not. */
+  get transient(): boolean {
+    return true;
   }
 }

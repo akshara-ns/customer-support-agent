@@ -163,11 +163,10 @@ describe("agent loop scenarios (scripted model)", () => {
   });
 
   it("model failure: typed error event, graceful reply, stream still ends with done", async () => {
-    const s = setup([
-      () => {
-        throw new ModelError("llm_rate_limited", "The language model is rate limited.");
-      },
-    ]);
+    const fail = () => {
+      throw new ModelError("llm_rate_limited", "The language model is rate limited.", 1);
+    };
+    const s = setup([fail, fail, fail]); // every retry attempt fails
     const r = await s.turn("hello");
     expect(r.state).toBe("failed");
     expect(s.emitted.find((e) => e.type === "error")).toMatchObject({ code: "llm_rate_limited", retryable: true });

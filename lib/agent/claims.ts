@@ -91,6 +91,11 @@ export class ClaimGate {
     return out;
   }
 
+  /** Drops buffered, unreleased text (a failed model attempt that will be retried). */
+  discard(): void {
+    this.buffer = "";
+  }
+
   flush(): string[] {
     const rest = this.buffer;
     this.buffer = "";

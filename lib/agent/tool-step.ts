@@ -96,9 +96,10 @@ export async function runToolStep(a: ToolStepArgs): Promise<{ outcome: ToolOutco
     a.emit({ type: "escalation", kind: "suggested", reason });
     await log({ type: "escalation", kind: "suggested", reason });
   }
-  if (!outcome.result.ok && outcome.result.error.code === "TOOL_FAILURE") {
-    a.emit({ type: "error", code: "tool_failed", message: outcome.result.error.message, retryable: true });
-    await log({ type: "error", code: "tool_failed", message: outcome.result.error.message });
+  if (!outcome.result.ok && (outcome.result.error.code === "TOOL_FAILURE" || outcome.result.error.code === "SERVICE_UNAVAILABLE")) {
+    const code = outcome.result.error.code === "TOOL_FAILURE" ? "tool_failed" : "retrieval_unavailable";
+    a.emit({ type: "error", code, message: outcome.result.error.message, retryable: true, tool: a.call.name });
+    await log({ type: "error", code, message: outcome.result.error.message });
   }
   return { outcome, durationMs };
 }

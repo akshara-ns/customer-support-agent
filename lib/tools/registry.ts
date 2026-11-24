@@ -3,6 +3,7 @@
  * validates input, enforces preconditions, and turns any exception into a typed error.
  */
 import { z } from "zod";
+import { log } from "@/lib/log";
 import { createEscalationTicket, getPolicy, issueRefund, verifyIdentity, type VerifyEffects } from "@/lib/tools/tools";
 import type { ToolDeps } from "@/lib/tools/stores";
 import type { Ticket, TicketReason, ToolContext, ToolName, ToolResult } from "@/lib/tools/types";
@@ -152,12 +153,19 @@ export async function executeTool(name: string, rawArgs: string, ctx: ToolContex
       }
     }
   } catch (err) {
-    console.error(`tool ${name} failed`, err);
-    return {
-      name,
-      result: { ok: false, error: { code: "TOOL_FAILURE", message: "The system couldn't complete this step. Nothing was changed.", retryable: true } },
-      effects: {},
-    };
+    log.error("tool failed", { tool: name, sessionId: ctx.sessionId, turnId: ctx.turnId }, err);
+    if (name === "get_policy") {
+      return {
+        name,
+        result: { ok: false, error: { code: "SERVICE_UNAVAILABLE", message: "The knowledge base is temporarily unavailable.", retryable: true } },
+        effects: {},
+      };
+    }
+    const message =
+      name === "issue_refund"
+        ? "The refund couldn't be completed and nothing was refunded. The request is recorded, so trying again can't refund twice."
+        : "The system couldn't complete this step. Nothing was changed.";
+    return { name, result: { ok: false, error: { code: "TOOL_FAILURE", message, retryable: true } }, effects: {} };
   }
 }
 

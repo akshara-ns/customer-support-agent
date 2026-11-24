@@ -6,6 +6,8 @@
 import { ClaimGate, type TurnActions } from "@/lib/agent/claims";
 import { AgentMachine, type AgentState } from "@/lib/agent/machine";
 import { ModelError, type AgentModel } from "@/lib/agent/model";
+import { DEFAULT_RETRY, withRetry } from "@/lib/agent/retry";
+import { redact } from "@/lib/observability/redact";
 import { SYSTEM_PROMPT } from "@/lib/agent/prompt";
 import { Trace } from "@/lib/observability/trace";
 import { buildContext, deriveState, type EventStore } from "@/lib/session/events";
@@ -27,7 +29,18 @@ export interface TurnDeps {
   model: AgentModel;
   tools: ToolDeps;
   events: EventStore;
+  /** Persists the turn's trace before `done` is emitted (so the drawer can read it immediately). */
+  traceSink?: (trace: Trace, channel: Channel) => Promise<void>;
+  /** Test hook: retry delays. */
+  sleep?: (ms: number) => Promise<void>;
 }
+
+const FALLBACK: Record<string, string> = {
+  llm_timeout: "Sorry, the assistant took too long to respond.",
+  llm_rate_limited: "Sorry, the assistant is busy right now.",
+  llm_unavailable: "Sorry, the assistant is unavailable right now.",
+  internal: "Sorry, something went wrong on our side.",
+};
 
 export interface TurnSummary {
   turnId: string;
@@ -67,10 +80,19 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
   let reply = "";
   let iterationText = "";
   let escalated = false;
+  let attemptEmitted = 0;
+  let ttftMs: number | undefined;
+  const turnStart = performance.now();
   const say = (parts: string[]) => {
     for (const text of parts) {
+      if (!text) continue;
+      if (ttftMs === undefined) {
+        ttftMs = Math.round(performance.now() - turnStart);
+        trace.mark("agent", "first_token", { ms: ttftMs });
+      }
       reply += text;
       iterationText += text;
+      attemptEmitted++;
       emit({ type: "token", text });
     }
   };
@@ -81,10 +103,33 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
       const toolChoice = steps >= MAX_TOOL_STEPS ? "none" : "auto";
       iterationText = "";
       const messages = buildContext(await deps.events.list(sessionId));
-      const turn = await trace.span("llm", "agent_step", { model: deps.model.name, toolChoice, messages: messages.length }, async (s) => {
-        const t = await deps.model.complete({ system: SYSTEM_PROMPT, messages, tools: TOOL_DEFINITIONS, toolChoice }, (d) => say(gate.push(d)));
+      const promptTrace = {
+        model: deps.model.name,
+        toolChoice,
+        tools: TOOL_DEFINITIONS.map((t) => t.function.name),
+        // The prompt as sent (system prompt is shown once per session in the drawer), PII redacted.
+        messages: redact(messages.slice(-20)),
+        omittedMessages: Math.max(0, messages.length - 20),
+      };
+      const turn = await trace.span("llm", "agent_step", promptTrace, async (s) => {
+        const t = await withRetry(
+          async () => {
+            attemptEmitted = 0;
+            return deps.model.complete({ system: SYSTEM_PROMPT, messages, tools: TOOL_DEFINITIONS, toolChoice }, (d) => say(gate.push(d)));
+          },
+          {
+            ...DEFAULT_RETRY,
+            sleep: deps.sleep,
+            committed: () => attemptEmitted > 0,
+            onRetry: ({ attempt, attempts, delayMs, code }) => {
+              gate.discard();
+              trace.mark("agent", "retry", { attempt, attempts, delayMs, reason: code });
+              emit({ type: "retrying", attempt, attempts, delayMs, reason: code });
+            },
+          },
+        );
         s.usage(t.usage);
-        s.output({ toolCalls: t.toolCalls.map((c) => c.name), cachedTokens: t.usage.cachedTokens, text: t.content.slice(0, 300) });
+        s.output({ toolCalls: t.toolCalls.map((c) => ({ name: c.name, arguments: redact(c.arguments) })), text: redact(t.content.slice(0, 500)) });
         return t;
       });
 
@@ -143,14 +188,22 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
       ...actions.refunds.map((r) => `A refund of $${r.amountUsd} on invoice ${r.invoiceId} was issued.`),
       ...actions.tickets.map((t) => `Ticket ${t.ticketNumber} was created.`),
     ].join(" ");
-    const fallback = `Sorry, I'm having trouble responding right now. ${done ? `${done} ` : ""}Please try again in a moment.`;
+    const fallback = `${FALLBACK[code] ?? FALLBACK.internal} ${done ? `${done} ` : "Nothing was changed. "}Please try again in a moment.`;
     gate.flush();
     say([reply ? `\n\n${fallback}` : fallback]);
     await log({ type: "error", code, message });
   }
 
-  for (const span of trace.spans) emit({ type: "trace", span });
   const state = machine.state === "escalated" ? "escalated" : machine.state === "completed" ? "completed" : "failed";
-  emit({ type: "done", turnId: trace.turnId, state, totals: trace.totals() });
+  trace.mark("agent", "turn_end", { state, ttftMs, toolsCalled });
+  if (deps.traceSink) {
+    try {
+      await deps.traceSink(trace, channel);
+    } catch (err) {
+      console.error("trace persist failed", err);
+    }
+  }
+  for (const span of trace.spans) emit({ type: "trace", span });
+  emit({ type: "done", turnId: trace.turnId, state, totals: { ...trace.totals(), ttftMs } });
   return { turnId: trace.turnId, state, reply: reply.trim(), toolsCalled, actions, corrections: gate.corrections, trace };
 }

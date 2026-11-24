@@ -1,10 +1,14 @@
 import "server-only";
 import { EMBEDDING_DIMENSIONS, MODELS } from "@/lib/config";
+import OpenAI from "openai";
+import { activeFault } from "@/lib/faults";
 import { openai } from "@/lib/openai";
 import type { Usage } from "@/lib/observability/trace";
 
 export async function embed(texts: string[]): Promise<{ vectors: number[][]; usage: Usage }> {
-  const res = await openai().embeddings.create({
+  // Simulated outage: same call against an unreachable host, so a real connection error surfaces.
+  const client = activeFault() === "retrieval_down" ? new OpenAI({ apiKey: "unused", baseURL: "http://127.0.0.1:9/v1", maxRetries: 0, timeout: 3000 }) : openai();
+  const res = await client.embeddings.create({
     model: MODELS.embedding,
     input: texts,
     dimensions: EMBEDDING_DIMENSIONS,
