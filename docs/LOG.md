@@ -81,3 +81,36 @@ What was done, what was tried and dropped, problems found, AI use.
 - Claude Code (Opus) designed and wrote the tools, agent, SSE route, UI, tests and scenario runner, and ran all checks shown.
 - Live UI testing found two bugs the tests missed: (1) the transcript restore for a new session could overwrite a message sent while it was loading (now it only fills an empty list); (2) on a later turn the model re-called verify_identity with the redacted PIN from the log and failed verification (re-verifying an already verified account is now a no-op in code, with a test). Live acceptance then passed: Pro verify → policy, refund $174 within limits, $900 refused by the tool, ticket ESC-1001 (P2) on request; enterprise verify → policy → refund $650 in one turn.
 - Live demo state is now used up for Omar inv_2001/inv_2002 and Northbeam inv_3001 (already refunded in the ledger). A demo reset is needed before the Loom.
+
+## 2026-11-23 · Block 5–7: live voice (started 20:36)
+
+**First items**
+- `npm run demo:reset` (developer machine only, no endpoint; confirmation prompt unless `--yes`) deletes demo refunds and tickets. Run on prod: removed 4 ledger rows and ticket ESC-1001; a second run removed nothing. Added 2–3 invoices per demo user (24 total) and updated the demo-panel hints.
+- `/api/chat` already used the Postgres limiter (phase 3). Verified live: 32 parallel requests from one IP → 26 × 200, 6 × 429 (about 4 earlier chats from the same IP were in the window).
+
+**Done**
+- Checked the current OpenAI docs (client_secrets, /v1/realtime/calls, event names); confirmed the event names that weren't in the fetched pages live on the debug page.
+- `runToolStep` extracted and shared by chat and voice; context rebuild pairs tool calls with results even when voice logs a transcript in between.
+- `/api/voice/session` (ephemeral key, history, verified context), `/api/voice/tool` (bridge), `/api/voice/events` (transcripts with claim flags, usage to `traces`).
+- Client: WebRTC, two waveforms, live transcripts, step indicators, interruption, 3-minute cap, reconnect, `/voice-debug` (events, interruption timings, test clips, simulated drop).
+- Synthetic caller clips (TTS) so voice can be tested without a microphone.
+- Tests: 67 (12 new voice tests). Live checks: evals/VOICE_CHECKS.md, all pass (interruption about 0.63 s end to end, mostly VAD).
+
+**Problems found (all fixed and re-checked live)**
+- Server VAD with 500 ms silence split callers at every pause → semantic VAD.
+- Test clips: pure digital silence stopped WebRTC packets (DTX), so the turn never ended → −60 dB noise floor in clip mode.
+- Interrupt targeted the last *generated* response; playback outlasts `response.done` → track the *playing* response.
+- Half-streamed tool calls from an interrupted response were executed (harmless INVALID_INPUT) → dropped.
+- The voice model refused an over-limit refund from policy text instead of calling the tool → shared prompt now says issue_refund always decides. Chat scenarios re-run: briefly 5/6 (S6 refused from invoice data), final wording 6/6.
+- Answers still playing when the call ended weren't logged → flushed as the heard portion.
+- A stray `cat >> /dev/null` in one of my commands hung on stdin; stopped and redone.
+
+**Limitations**
+- Checks used synthetic TTS speech, not a person on a microphone; a person should repeat them in Chrome.
+- The network drop was simulated by closing the peer connection; a real network outage wasn't tested.
+- Interruption end to end is about 0.63 s from speech onset (target ~0.5 s); the client reacts in 0 ms, the rest is server VAD detection. A local level-based pre-mute could cut it further at the risk of false triggers.
+- Spoken audio can't be rewritten by the claim check; mismatches are flagged instead (D35).
+- The 3-minute cap is enforced by the client; per-IP and daily caps bound abuse.
+
+**AI use**
+- Claude Code (Opus) wrote the voice server, client, tests, clips and docs, and ran every check in the built-in browser on the live URL. A web-fetch subagent read the current OpenAI Realtime docs.
