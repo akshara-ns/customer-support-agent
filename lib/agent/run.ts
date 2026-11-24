@@ -52,6 +52,12 @@ export interface TurnDeps {
   finalChecker?: FinalReplyChecker;
 }
 
+/** A short message with no question mark: a confirmation or thanks, not something to look up. */
+export function isAcknowledgement(message: string): boolean {
+  const words = message.trim().split(/\s+/).filter(Boolean);
+  return !message.includes("?") && words.length <= 6;
+}
+
 /** Streamed before the first tool runs when the model gave no preamble (claim-free by construction). */
 export const ACKNOWLEDGMENT = "One moment while I check that. ";
 
@@ -162,6 +168,12 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
     // (The checker flags harmless paraphrases of tool results, so it must not escalate those turns.)
     if (toolsCalled.length > 0 && !toolsCalled.includes("get_policy")) {
       trace.mark("guardrail", "final_grounding_advisory", { unsupported: check.unsupported });
+      return [text];
+    }
+    // A short reply with no question ("yes, go ahead", "thanks") isn't a knowledge question: don't run the
+    // guardrail on it (seen in scenario S7: it opened an unwanted ticket); the finding is logged instead.
+    if (toolsCalled.length === 0 && isAcknowledgement(input.message)) {
+      trace.mark("guardrail", "final_grounding_advisory", { unsupported: check.unsupported, reason: "acknowledgement" });
       return [text];
     }
     if (toolsCalled.length === 0) {

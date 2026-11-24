@@ -111,4 +111,21 @@ describe("final-reply grounding", () => {
     expect(shown).toMatch(/handed it to a person: ticket ESC-\d+ \(P3\), first response within 1 business day/);
     expect(shown).not.toContain("couldn't confirm anything beyond");
   });
+
+  it("a short confirmation with an ungrounded reply is not sent to the guardrail (no ticket)", async () => {
+    const s = session();
+    await s.turn("omar@example.com 715204", [VERIFY, text("You're verified. ")]);
+    const { r } = await s.turn("Yes, go ahead with that refund.", [text("Great, and I can help with stock questions too. ")]);
+    expect(r.toolsCalled).toEqual([]);
+    expect(r.state).toBe("completed");
+    expect(s.tickets.tickets.size).toBe(0);
+  });
+
+  it("isAcknowledgement: confirmations yes, questions and longer requests no", async () => {
+    const { isAcknowledgement } = await import("@/lib/agent/run");
+    expect(isAcknowledgement("Yes, go ahead with that refund.")).toBe(true);
+    expect(isAcknowledgement("thanks!")).toBe(true);
+    expect(isAcknowledgement("Can you recommend a good stock to buy?")).toBe(false);
+    expect(isAcknowledgement("Please tell me which investments are good for retirement this year")).toBe(false);
+  });
 });
