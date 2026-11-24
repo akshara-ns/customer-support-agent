@@ -270,3 +270,18 @@ export interface TraceReportResponse extends SessionReport {
   systemPrompt: string;
   pricing: { checked: string; source: string; note: string };
 }
+
+/** Customer-facing wording for why the guardrail escalated (shown on the escalation card). */
+const ESCALATION_REASON_TEXT: Record<string, string> = {
+  low_retrieval_confidence: "no relevant policy found",
+  answer_declined: "our documentation doesn't cover this",
+  no_citations: "the answer couldn't be tied to a policy",
+  invalid_citation: "the answer cited a policy that wasn't found",
+  unsupported_claim: "answer not supported by policy",
+  grounding_check_failed: "the answer couldn't be verified",
+  no_answer: "no answer found in our documentation",
+};
+
+export function escalationReasonText(reason: string): string {
+  return ESCALATION_REASON_TEXT[reason] ?? reason.replace(/_/g, " ");
+}

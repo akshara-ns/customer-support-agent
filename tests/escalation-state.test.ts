@@ -12,6 +12,7 @@ import { MemoryLedger, MemoryTickets } from "@/lib/tools/memory-stores";
 import type { PolicySearch, ToolDeps } from "@/lib/tools/stores";
 import type { AgentEvent } from "@/lib/types";
 import { runVoiceTool } from "@/lib/voice/bridge";
+import { escalationReasonText } from "@/lib/contracts";
 
 const NOW = new Date("2026-11-23T12:00:00Z");
 const LOW: PolicySearch = { search: async () => ({ status: "needs_escalation", reason: "low_retrieval_confidence", confidence: 0.214 }) };
@@ -50,10 +51,12 @@ describe("low-confidence escalation in chat", () => {
     const r = await s.turn();
     expect(r.state).toBe("escalated");
     const esc = s.emitted.find((e) => e.type === "escalation");
-    expect(esc).toMatchObject({ kind: "ticket", reason: "low_confidence", confidence: 0.214, ticket: { priority: "P3" } });
+    // The card shows the guardrail's reason; the ticket itself is filed under low_confidence.
+    expect(esc).toMatchObject({ kind: "ticket", reason: "low_retrieval_confidence", confidence: 0.214, ticket: { priority: "P3" } });
+    expect(escalationReasonText((esc as { reason: string }).reason)).toBe("no relevant policy found");
     expect([...s.tickets.tickets.values()]).toHaveLength(1);
     const logged = (await s.events.list("sess-esc")).map((e) => e.event).find((e) => e.type === "escalation");
-    expect(logged).toMatchObject({ kind: "ticket", confidence: 0.214 });
+    expect(logged).toMatchObject({ kind: "ticket", confidence: 0.214, reason: "low_retrieval_confidence", ticket: { reason: "low_confidence" } });
     expect(r.trace.spans.find((x) => x.name === "turn_end")?.output).toMatchObject({ state: "escalated" });
   });
 
@@ -89,5 +92,13 @@ describe("low-confidence escalation in voice", () => {
     expect(r.output).toMatch(/ESC-\d+/);
     expect(r.output).toMatch(/handed|person/i);
     expect(traces.find((t) => t.name === "turn_end")?.output).toMatchObject({ state: "escalated" });
+  });
+});
+
+describe("escalation reason wording", () => {
+  it("maps guardrail reasons to plain text and falls back to the code", () => {
+    expect(escalationReasonText("unsupported_claim")).toBe("answer not supported by policy");
+    expect(escalationReasonText("answer_declined")).toBe("our documentation doesn't cover this");
+    expect(escalationReasonText("some_new_reason")).toBe("some new reason");
   });
 });

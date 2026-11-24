@@ -100,8 +100,10 @@ export async function runToolStep(a: ToolStepArgs): Promise<{ outcome: ToolOutco
   const confidence = policyEscalation?.confidence;
   if (outcome.effects.ticket) {
     const ticket = outcome.effects.ticket;
-    a.emit({ type: "escalation", kind: "ticket", reason: ticket.reason, confidence, ticket: ticketSummary(ticket) });
-    await log({ type: "escalation", kind: "ticket", reason: ticket.reason, confidence, ticket });
+    // A guardrail escalation reports the guardrail's reason (e.g. low_retrieval_confidence), not the ticket category.
+    const reason = policyEscalation?.reason ?? ticket.reason;
+    a.emit({ type: "escalation", kind: "ticket", reason, confidence, ticket: ticketSummary(ticket) });
+    await log({ type: "escalation", kind: "ticket", reason, confidence, ticket });
   } else if (policyEscalation) {
     // Not verified: the handoff is offered; the ticket needs the customer's identity.
     a.emit({ type: "escalation", kind: "suggested", reason: policyEscalation.reason, confidence });

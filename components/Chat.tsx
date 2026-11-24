@@ -1,12 +1,13 @@
 "use client";
 
+
 import { useEffect, useRef, useState } from "react";
 import { useChat, type ChatMessage, type Step } from "@/components/useChat";
 import { VoiceBar } from "@/components/voice/VoiceBar";
 import { VoiceDebugPanel } from "@/components/voice/VoiceDebugPanel";
 import { useVoice } from "@/components/voice/useVoice";
 import { TraceDrawer } from "@/components/TraceDrawer";
-import type { ClientFault } from "@/lib/contracts";
+import { escalationReasonText, type ClientFault } from "@/lib/contracts";
 
 /** A distinct, friendly state per failure type, with the actions that make sense for it. */
 function errorCopy(code: string, tool?: string): { text: string; actions: ("retry" | "refund_again" | "ticket")[] } {
@@ -55,7 +56,7 @@ function EscalationCard({ m, onCreate }: { m: ChatMessage; onCreate: () => void 
         </span>
         {e.confidence !== undefined && (
           <span className="small">
-            Reason: {e.reason.replace(/_/g, " ")} · retrieval confidence {e.confidence.toFixed(2)}
+            Reason: {escalationReasonText(e.reason)} · retrieval confidence {e.confidence.toFixed(2)}
           </span>
         )}
       </div>
@@ -65,7 +66,7 @@ function EscalationCard({ m, onCreate }: { m: ChatMessage; onCreate: () => void 
     <div className="escalation escalation-suggested" role="status">
       <strong>Not confident enough to answer</strong>
       <span>
-        The knowledge base doesn&apos;t cover this reliably ({e.reason.replace(/_/g, " ")}
+        The knowledge base doesn&apos;t cover this reliably ({escalationReasonText(e.reason)}
         {e.confidence !== undefined && `, confidence ${e.confidence.toFixed(2)}`}). Verify your account to have a person pick it up.
       </span>
       <button type="button" onClick={onCreate}>
