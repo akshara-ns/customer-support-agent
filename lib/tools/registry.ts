@@ -26,13 +26,7 @@ const Inputs = {
   create_escalation_ticket: z.object({ reason: z.enum(TICKET_REASONS), summary: z.string().min(5).max(1000) }),
 } satisfies Record<ToolName, z.ZodType>;
 
-/** Status lines for the UI's live step indicators. */
-export const TOOL_LABELS: Record<ToolName, string> = {
-  verify_identity: "Verifying identity and account tier…",
-  get_policy: "Searching knowledge base…",
-  issue_refund: "Checking refund policy and issuing refund…",
-  create_escalation_ticket: "Creating escalation ticket…",
-};
+export { TOOL_LABELS } from "@/lib/tools/labels";
 
 /** OpenAI function definitions. Order and text are fixed so the prompt prefix stays cacheable. */
 export const TOOL_DEFINITIONS = [

@@ -2,13 +2,13 @@
  * The session event log: one append-only, numbered sequence per session, shared by chat
  * and voice. Agent context and verified-identity state are rebuilt from it every turn.
  */
-import type { ToolError, Ticket, ToolResult, VerifiedCustomer } from "@/lib/tools/types";
+import type { RefundReceipt, ToolError, Ticket, ToolResult, VerifiedCustomer } from "@/lib/tools/types";
 import type { VerifyEffects } from "@/lib/tools/tools";
 import type { Channel } from "@/lib/types";
 
 export type SessionEvent =
   | { type: "user_message"; text: string }
-  | { type: "assistant_message"; text: string; corrections?: string[] }
+  | { type: "assistant_message"; text: string; corrections?: string[]; interrupted?: boolean }
   | { type: "tool_call"; toolCallId: string; name: string; arguments: string; content?: string }
   | { type: "tool_result"; toolCallId: string; name: string; result: ToolResult<unknown>; effects: VerifyEffects }
   | { type: "escalation"; kind: "ticket" | "suggested"; reason: string; ticket?: Ticket }
@@ -61,8 +61,11 @@ function toolContent(result: ToolResult<unknown>): string {
 export function buildContext(events: StoredEvent[], maxEvents = 60): ContextMessage[] {
   let start = Math.max(0, events.length - maxEvents);
   while (start > 0 && start < events.length && events[start].event.type !== "user_message") start++;
+  const window = events.slice(start);
+  const results = new Map<string, Extract<SessionEvent, { type: "tool_result" }>>();
+  for (const { event } of window) if (event.type === "tool_result") results.set(event.toolCallId, event);
   const out: ContextMessage[] = [];
-  for (const { event } of events.slice(start)) {
+  for (const { event } of window) {
     switch (event.type) {
       case "user_message":
         out.push({ role: "user", content: event.text });
@@ -70,16 +73,19 @@ export function buildContext(events: StoredEvent[], maxEvents = 60): ContextMess
       case "assistant_message":
         out.push({ role: "assistant", content: event.text });
         break;
-      case "tool_call":
+      case "tool_call": {
+        // Emit each call immediately followed by its result (voice can log a transcript in between);
+        // a call without a recorded result is dropped.
+        const result = results.get(event.toolCallId);
+        if (!result) break;
         out.push({
           role: "assistant",
           content: event.content || null,
           tool_calls: [{ id: event.toolCallId, type: "function", function: { name: event.name, arguments: event.arguments } }],
         });
+        out.push({ role: "tool", tool_call_id: event.toolCallId, content: toolContent(result.result) });
         break;
-      case "tool_result":
-        out.push({ role: "tool", tool_call_id: event.toolCallId, content: toolContent(event.result) });
-        break;
+      }
       default:
         break; // escalation and error events are for the UI and audit, not the model
     }
@@ -102,4 +108,23 @@ export class MemoryEventStore implements EventStore {
   async list(sessionId: string) {
     return [...(this.sessions.get(sessionId) ?? [])];
   }
+}
+
+/** Refunds, refusals and tickets from tool results logged under one turn id (for the claim check). */
+export function actionsForTurn(events: StoredEvent[], turnId: string): {
+  refunds: RefundReceipt[];
+  refundErrors: ToolError[];
+  tickets: Ticket[];
+} {
+  const out = { refunds: [] as RefundReceipt[], refundErrors: [] as ToolError[], tickets: [] as Ticket[] };
+  for (const e of events) {
+    if (e.turnId !== turnId || e.event.type !== "tool_result") continue;
+    const ev = e.event;
+    if (ev.name === "issue_refund") {
+      if (ev.result.ok) out.refunds.push(ev.result.data as RefundReceipt);
+      else out.refundErrors.push(ev.result.error);
+    }
+    if (ev.effects.ticket) out.tickets.push(ev.effects.ticket);
+  }
+  return out;
 }

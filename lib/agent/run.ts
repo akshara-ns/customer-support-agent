@@ -9,9 +9,10 @@ import { ModelError, type AgentModel } from "@/lib/agent/model";
 import { SYSTEM_PROMPT } from "@/lib/agent/prompt";
 import { Trace } from "@/lib/observability/trace";
 import { buildContext, deriveState, type EventStore } from "@/lib/session/events";
-import { TOOL_DEFINITIONS, TOOL_LABELS, executeTool, isToolName, redactArgs, type ToolOutcome } from "@/lib/tools/registry";
+import { runToolStep } from "@/lib/agent/tool-step";
+import { TOOL_DEFINITIONS } from "@/lib/tools/registry";
 import type { ToolDeps } from "@/lib/tools/stores";
-import type { RefundReceipt, Ticket, ToolContext } from "@/lib/tools/types";
+import type { RefundReceipt, ToolContext } from "@/lib/tools/types";
 import type { AgentEvent, Channel } from "@/lib/types";
 
 export const MAX_TOOL_STEPS = 6;
@@ -37,23 +38,6 @@ export interface TurnSummary {
   corrections: { original: string; replacement: string; reason: string }[];
   trace: Trace;
 }
-
-function summarize(o: ToolOutcome): string {
-  if (!o.result.ok) return o.result.error.message;
-  const d = o.result.data as Record<string, unknown>;
-  switch (o.name) {
-    case "verify_identity":
-      return `Verified: ${d.tier} tier, contract ${d.contract_status}`;
-    case "get_policy":
-      return d.status === "answered" ? `Found policy answer (confidence ${d.confidence})` : "Not covered by policy: escalation suggested";
-    case "issue_refund":
-      return `Refund of $${d.amountUsd} issued on ${d.invoiceId}${d.replayed ? " (already processed)" : ""}`;
-    case "create_escalation_ticket":
-      return `Ticket ${d.ticketNumber} created (${d.priority})`;
-  }
-}
-
-const toSummary = (t: Ticket) => ({ ticketNumber: t.ticketNumber, priority: t.priority, responseTarget: t.responseTarget });
 
 export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentEvent) => void): Promise<TurnSummary> {
   const trace = new Trace();
@@ -118,26 +102,19 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
         steps++;
         toolsCalled.push(call.name);
         go("executing_tool", call.name);
-        const stepId = `${trace.turnId}:${steps}`;
-        const label = isToolName(call.name) ? TOOL_LABELS[call.name] : call.name;
-        emit({ type: "step_started", stepId, tool: call.name, label });
-        await log({
-          type: "tool_call",
-          toolCallId: call.id,
-          name: call.name,
-          arguments: redactArgs(call.name, call.arguments),
-          content: i === 0 ? iterationText.trim() || undefined : undefined,
+        const { outcome } = await runToolStep({
+          sessionId,
+          turnId: trace.turnId,
+          channel,
+          stepId: `${trace.turnId}:${steps}`,
+          call,
+          preamble: i === 0 ? iterationText.trim() : undefined,
+          ctx,
+          deps: deps.tools,
+          events: deps.events,
+          emit,
+          trace,
         });
-
-        const t0 = performance.now();
-        const outcome = await trace.span("tool", call.name, JSON.parse(redactArgs(call.name, call.arguments) || "{}"), async (s) => {
-          const o = await executeTool(call.name, call.arguments, ctx, deps.tools);
-          s.output(o.result);
-          return o;
-        });
-        const durationMs = Math.round(performance.now() - t0);
-        emit({ type: "step_completed", stepId, tool: call.name, label, ok: outcome.result.ok, durationMs, summary: summarize(outcome) });
-        await log({ type: "tool_result", toolCallId: call.id, name: outcome.name, result: outcome.result, effects: outcome.effects });
 
         // Session state and per-turn facts the claim gate checks against.
         if (outcome.effects.verified) ctx.customer = outcome.effects.verified;
@@ -147,20 +124,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
           else actions.refundErrors.push(outcome.result.error);
         }
         if (outcome.effects.ticket) {
-          const ticket = outcome.effects.ticket;
-          actions.tickets.push(ticket);
+          actions.tickets.push(outcome.effects.ticket);
           escalated = true;
-          emit({ type: "escalation", kind: "ticket", reason: ticket.reason, ticket: toSummary(ticket) });
-          await log({ type: "escalation", kind: "ticket", reason: ticket.reason, ticket });
-        }
-        if (outcome.name === "get_policy" && outcome.result.ok && (outcome.result.data as { status: string }).status === "needs_escalation") {
-          const reason = String((outcome.result.data as { reason: string }).reason);
-          emit({ type: "escalation", kind: "suggested", reason });
-          await log({ type: "escalation", kind: "suggested", reason });
-        }
-        if (!outcome.result.ok && outcome.result.error.code === "TOOL_FAILURE") {
-          emit({ type: "error", code: "tool_failed", message: outcome.result.error.message, retryable: true });
-          await log({ type: "error", code: "tool_failed", message: outcome.result.error.message });
         }
         go("planning");
       }

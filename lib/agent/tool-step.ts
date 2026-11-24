@@ -1,0 +1,104 @@
+/**
+ * One tool step, shared by the chat loop and the voice tool bridge: emit step_started, log the
+ * call, run the executor (validation, preconditions, policy), emit step_completed, log the
+ * result, and surface tickets / suggested escalations / tool failures as events.
+ */
+import type { Trace } from "@/lib/observability/trace";
+import type { EventStore } from "@/lib/session/events";
+import { TOOL_LABELS, executeTool, isToolName, redactArgs, type ToolOutcome } from "@/lib/tools/registry";
+import type { ToolDeps } from "@/lib/tools/stores";
+import type { Ticket, ToolContext } from "@/lib/tools/types";
+import type { AgentEvent, Channel } from "@/lib/types";
+
+export interface ToolCallInput {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface ToolStepArgs {
+  sessionId: string;
+  turnId: string;
+  channel: Channel;
+  stepId: string;
+  call: ToolCallInput;
+  /** Text the model said before calling the tool (chat), logged with the call. */
+  preamble?: string;
+  ctx: ToolContext;
+  deps: ToolDeps;
+  events: EventStore;
+  emit: (e: AgentEvent) => void;
+  trace?: Trace;
+}
+
+export function summarizeOutcome(o: ToolOutcome): string {
+  if (!o.result.ok) return o.result.error.message;
+  const d = o.result.data as Record<string, unknown>;
+  switch (o.name) {
+    case "verify_identity":
+      return `Verified: ${d.tier} tier, contract ${d.contract_status}`;
+    case "get_policy":
+      return d.status === "answered" ? `Found policy answer (confidence ${d.confidence})` : "Not covered by policy: escalation suggested";
+    case "issue_refund":
+      return `Refund of $${d.amountUsd} issued on ${d.invoiceId}${d.replayed ? " (already processed)" : ""}`;
+    case "create_escalation_ticket":
+      return `Ticket ${d.ticketNumber} created (${d.priority})`;
+  }
+}
+
+const ticketSummary = (t: Ticket) => ({ ticketNumber: t.ticketNumber, priority: t.priority, responseTarget: t.responseTarget });
+
+/** The model-facing tool output: data or the typed error, nothing else. Same for chat and voice. */
+export function toolOutputForModel(o: ToolOutcome): string {
+  return JSON.stringify(o.result.ok ? { ok: true, data: o.result.data } : { ok: false, error: o.result.error });
+}
+
+export async function runToolStep(a: ToolStepArgs): Promise<{ outcome: ToolOutcome; durationMs: number }> {
+  const log = (event: Parameters<EventStore["append"]>[3]) => a.events.append(a.sessionId, a.turnId, a.channel, event);
+  const label = isToolName(a.call.name) ? TOOL_LABELS[a.call.name] : a.call.name;
+  a.emit({ type: "step_started", stepId: a.stepId, tool: a.call.name, label });
+  await log({
+    type: "tool_call",
+    toolCallId: a.call.id,
+    name: a.call.name,
+    arguments: redactArgs(a.call.name, a.call.arguments),
+    content: a.preamble || undefined,
+  });
+
+  const t0 = performance.now();
+  const run = () => executeTool(a.call.name, a.call.arguments, a.ctx, a.deps);
+  const redacted = (() => {
+    try {
+      return JSON.parse(redactArgs(a.call.name, a.call.arguments) || "{}");
+    } catch {
+      return {};
+    }
+  })();
+  const outcome = a.trace
+    ? await a.trace.span("tool", a.call.name, redacted, async (s) => {
+        const o = await run();
+        s.output(o.result);
+        return o;
+      })
+    : await run();
+  const durationMs = Math.round(performance.now() - t0);
+
+  a.emit({ type: "step_completed", stepId: a.stepId, tool: a.call.name, label, ok: outcome.result.ok, durationMs, summary: summarizeOutcome(outcome) });
+  await log({ type: "tool_result", toolCallId: a.call.id, name: outcome.name, result: outcome.result, effects: outcome.effects });
+
+  if (outcome.effects.ticket) {
+    const ticket = outcome.effects.ticket;
+    a.emit({ type: "escalation", kind: "ticket", reason: ticket.reason, ticket: ticketSummary(ticket) });
+    await log({ type: "escalation", kind: "ticket", reason: ticket.reason, ticket });
+  }
+  if (outcome.name === "get_policy" && outcome.result.ok && (outcome.result.data as { status: string }).status === "needs_escalation") {
+    const reason = String((outcome.result.data as { reason: string }).reason);
+    a.emit({ type: "escalation", kind: "suggested", reason });
+    await log({ type: "escalation", kind: "suggested", reason });
+  }
+  if (!outcome.result.ok && outcome.result.error.code === "TOOL_FAILURE") {
+    a.emit({ type: "error", code: "tool_failed", message: outcome.result.error.message, retryable: true });
+    await log({ type: "error", code: "tool_failed", message: outcome.result.error.message });
+  }
+  return { outcome, durationMs };
+}

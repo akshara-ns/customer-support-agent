@@ -12,6 +12,7 @@ import {
 } from "@/lib/tools/policy";
 import type { PolicyAnswer, ToolDeps } from "@/lib/tools/stores";
 import type {
+  CustomerRecord,
   RefundReceipt,
   Ticket,
   TicketReason,
@@ -93,7 +94,17 @@ export async function verifyIdentity(
     };
   }
 
-  // Policy limits are not returned here: policy questions go through get_policy (grounded, cited).
+  return {
+    result: { ok: true, data: await accountView(user, deps, alreadyVerified) },
+    effects: { verified: { customerId: user.customerId, tier: user.tier, contractStatus: user.contractStatus } },
+  };
+}
+
+/**
+ * What the model may know about a verified account. Data minimisation: no name, email or PIN.
+ * Policy limits are not included: policy questions go through get_policy (grounded, cited).
+ */
+export async function accountView(user: CustomerRecord, deps: ToolDeps, alreadyVerified = false): Promise<VerifyOutput> {
   const invoices = await Promise.all(
     user.invoices.map(async (i) => ({
       invoice_id: i.invoiceId,
@@ -104,20 +115,13 @@ export async function verifyIdentity(
       refundable_until: refundDeadline(i, user.tier),
     })),
   );
-  // Data minimisation: no name, email or PIN goes back to the model.
   return {
-    result: {
-      ok: true,
-      data: {
-        customer_id: user.customerId,
-        tier: user.tier,
-        contract_status: user.contractStatus,
-        contract_end: user.contractEnd,
-        already_verified: alreadyVerified,
-        invoices,
-      },
-    },
-    effects: { verified: { customerId: user.customerId, tier: user.tier, contractStatus: user.contractStatus } },
+    customer_id: user.customerId,
+    tier: user.tier,
+    contract_status: user.contractStatus,
+    contract_end: user.contractEnd,
+    already_verified: alreadyVerified,
+    invoices,
   };
 }
 
