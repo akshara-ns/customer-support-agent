@@ -2,6 +2,7 @@ import "server-only";
 import { GUARDRAILS } from "@/lib/config";
 import { assessRetrievalConfidence, type RetrievalConfidence } from "@/lib/guardrails/confidence";
 import { checkClaims, checkGrounding, type ClaimChecker, type GroundingResult } from "@/lib/guardrails/grounding";
+import { trimUnsupported } from "@/lib/guardrails/partial";
 import { Trace } from "@/lib/observability/trace";
 import { generateAnswer } from "@/lib/rag/answer";
 import { retrieve, type RetrieveParams } from "@/lib/rag/retrieve";
@@ -13,6 +14,8 @@ export interface GuardedAnswer {
   answer: string | null;
   /** Draft answer even when escalated (debugging and evals). */
   draft: string | null;
+  /** Sentences removed because they carried unsupported side details (partial grounding). */
+  removed?: string[];
   retrieval: { chunks: RetrievedChunk[]; confidence: RetrievalConfidence };
   grounding: GroundingResult | null;
   trace: Trace;
@@ -89,7 +92,7 @@ export async function answerWithGuardrails(opts: GuardOptions, trace = new Trace
 
   let grounding: GroundingResult;
   try {
-    grounding = await checkGrounding(draft.text, chunks, trace, deps.checkClaims);
+    grounding = await checkGrounding(draft.text, chunks, trace, deps.checkClaims, opts.query);
   } catch (err) {
     return escalate("grounding_check_failed", err instanceof Error ? err.message : "grounding check failed", {
       draft: draft.text,
@@ -110,6 +113,19 @@ export async function answerWithGuardrails(opts: GuardOptions, trace = new Trace
     });
   }
   if (!grounding.ok) {
+    // Only side details unsupported: drop those sentences and answer the rest (still cited and checked).
+    const partial = grounding.claims?.length ? trimUnsupported(draft.text, grounding.claims, chunks.map((c) => c.chunkKey)) : null;
+    if (partial) {
+      trace.mark("guardrail", "partial_grounding", { removed: partial.removed, unsupported: grounding.unsupported });
+      return {
+        decision: { escalate: false, confidence: confidence.topScore, evidence },
+        answer: partial.text,
+        draft: draft.text,
+        removed: partial.removed,
+        grounding,
+        ...base,
+      };
+    }
     return escalate("unsupported_claim", grounding.unsupported.join(" | ") || "no verifiable claims", {
       draft: draft.text,
       grounding,

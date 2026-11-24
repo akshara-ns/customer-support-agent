@@ -91,6 +91,40 @@ describe("guardrail pipeline branches", () => {
     expect(r.decision.escalate && r.decision.detail).toContain("within 60 days");
   });
 
+  it("unsupported side detail only → answers without that sentence, with a note (partial grounding)", async () => {
+    const draft = "Pro refunds are up to $200 per request within 30 days [refund-policy#3]. Annual plans also get a free month of storage [refund-policy#1].";
+    const r = await ask(
+      deps({
+        top: 0.6,
+        draft,
+        claims: [
+          { claim: "Pro refunds are up to $200 per request within 30 days", supported: true, cited_ids: ["refund-policy#3"], answers_question: true },
+          { claim: "Annual plans get a free month of storage", supported: false, cited_ids: ["refund-policy#1"], answers_question: false },
+        ],
+      }),
+    );
+    expect(r.decision.escalate).toBe(false);
+    expect(r.answer).toContain("up to $200 per request within 30 days [refund-policy#3]");
+    expect(r.answer).not.toContain("free month");
+    expect(r.answer).toContain("couldn't confirm the other details");
+    expect(r.removed).toEqual(["Annual plans also get a free month of storage [refund-policy#1]."]);
+    expect(r.trace.spans.map((s) => s.name)).toContain("partial_grounding");
+  });
+
+  it("unsupported claim that answers the question → still escalates", async () => {
+    const r = await ask(
+      deps({
+        top: 0.6,
+        draft: "Pro refunds are up to $500 per request [refund-policy#3]. Refunds arrive in 5-10 business days [refund-policy#1].",
+        claims: [
+          { claim: "Pro refunds are up to $500 per request", supported: false, cited_ids: ["refund-policy#3"], answers_question: true },
+          { claim: "Refunds arrive in 5-10 business days", supported: true, cited_ids: ["refund-policy#1"], answers_question: false },
+        ],
+      }),
+    );
+    expect(r.decision).toMatchObject({ escalate: true, reason: "unsupported_claim" });
+  });
+
   it("claim checker returns no claims → unsupported_claim (nothing verifiable)", async () => {
     const r = await ask(deps({ top: 0.6, draft: GOOD, claims: [] }));
     expect(r.decision).toMatchObject({ escalate: true, reason: "unsupported_claim" });
