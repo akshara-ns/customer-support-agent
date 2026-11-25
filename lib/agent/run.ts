@@ -157,12 +157,21 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
    */
   const groundFinal = async (text: string): Promise<string[]> => {
     const facts = factsFromEvents(await deps.events.list(sessionId));
-    const check = await trace.span("guardrail", "final_grounding", { records: facts.length }, async (s) => {
-      const r = await deps.finalChecker!(text, facts);
-      if (r.usage) s.usage({ model: r.usage.model, tokensIn: r.usage.tokensIn, tokensOut: r.usage.tokensOut });
-      s.output({ claims: r.claims, unsupported: r.unsupported });
-      return r;
-    });
+    let check: Awaited<ReturnType<FinalReplyChecker>>;
+    try {
+      check = await trace.span("guardrail", "final_grounding", { records: facts.length }, async (s) => {
+        const r = await deps.finalChecker!(text, facts);
+        if (r.usage) s.usage({ model: r.usage.model, tokensIn: r.usage.tokensIn, tokensOut: r.usage.tokensOut });
+        s.output({ claims: r.claims, unsupported: r.unsupported });
+        return r;
+      });
+    } catch (err) {
+      // The turn deadline still ends the turn; any other checker failure (timeout, 429, bad JSON) releases
+      // the regex-checked text (the action-claim check still runs) and is flagged in the trace.
+      if (deadline.signal.aborted) throw err;
+      trace.mark("guardrail", "final_grounding_failed", { error: err instanceof Error ? err.message : String(err) });
+      return [text];
+    }
     if (check.ok) return [text];
     // Tool turns are backed by the tool records and the action-claim check; only policy text is trimmed.
     // (The checker flags harmless paraphrases of tool results, so it must not escalate those turns.)

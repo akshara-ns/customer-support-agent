@@ -128,4 +128,19 @@ describe("final-reply grounding", () => {
     expect(isAcknowledgement("Can you recommend a good stock to buy?")).toBe(false);
     expect(isAcknowledgement("Please tell me which investments are good for retirement this year")).toBe(false);
   });
+
+  it("if the grounding check itself fails (timeout, bad JSON), the turn still completes with the checked text and a trace flag", async () => {
+    const events = new MemoryEventStore();
+    const tools = { customers: customerDirectory(NOW), ledger: new MemoryLedger(), tickets: new MemoryTickets(), policy, now: () => NOW };
+    let i = 0;
+    const steps = [text("Hi! What can I help you with today? ")];
+    const model: AgentModel = { name: "s", complete: async (_r, onText) => { const t = steps[i++] ?? text("Done. "); if (t.content) onText(t.content); return t; } };
+    const failing: FinalReplyChecker = async () => Promise.reject(new Error("Request timed out."));
+    const emitted: AgentEvent[] = [];
+    const r = await runTurn({ sessionId: "s-fg-fail", message: "hi", channel: "chat" }, { model, events, tools, finalChecker: failing }, (e) => emitted.push(e));
+    expect(r.state).toBe("completed");
+    expect(emitted.flatMap((e) => (e.type === "token" ? [e.text] : [])).join("")).toBe("Hi! What can I help you with today? ");
+    expect(r.trace.spans.map((x) => x.name)).toContain("final_grounding_failed");
+  });
 });
+
