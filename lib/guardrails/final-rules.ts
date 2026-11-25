@@ -58,3 +58,24 @@ export function dropUnsupported(text: string, unsupported: string[]): { text: st
   const kept = sentences.filter((_, i) => !drop.has(i));
   return { text: kept.length ? `${kept.join(" ")} ${UNCONFIRMED_NOTE}` : "", removed: sentences.filter((_, i) => drop.has(i)) };
 }
+
+/**
+ * The model sometimes repeats a sentence verbatim ("X\nX", seen in its raw output). Collapses immediate
+ * repeats; returns the text unchanged when there are none.
+ */
+export function collapseRepeatedSentences(text: string): string {
+  const parts = text.split(/(?<=[.!?])(\s+)/);
+  const out: string[] = [];
+  let last = "";
+  for (let i = 0; i < parts.length; i += 2) {
+    const sentence = parts[i];
+    const sep = parts[i + 1] ?? "";
+    const key = sentence.trim().toLowerCase();
+    if (key && key === last) continue;
+    out.push(sentence + sep);
+    if (key) last = key;
+  }
+  const collapsed = out.join("");
+  return collapsed.trim() === text.trim() ? text : collapsed.replace(/\s+$/, "") + (/\s$/.test(text) ? " " : "");
+}
+

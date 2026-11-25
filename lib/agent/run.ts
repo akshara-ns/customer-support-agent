@@ -5,7 +5,7 @@
  */
 import { ClaimGate, type ActionChecker, type TurnActions } from "@/lib/guardrails/claims";
 import type { FinalReplyChecker } from "@/lib/guardrails/final-reply";
-import { dropUnsupported, factsFromEvents, replyForPolicyOutcome } from "@/lib/guardrails/final-rules";
+import { collapseRepeatedSentences, dropUnsupported, factsFromEvents, replyForPolicyOutcome } from "@/lib/guardrails/final-rules";
 import { AgentMachine, type AgentState } from "@/lib/agent/machine";
 import { ModelError, type AgentModel } from "@/lib/agent/model";
 import { GUARDRAILS } from "@/lib/config";
@@ -274,6 +274,13 @@ export async function runTurn(input: TurnInput, deps: TurnDeps, emit: (e: AgentE
       if (turn.toolCalls.length === 0 || toolChoice === "none") {
         go("checking_claims");
         let finalSentences = gate.flush();
+        // The model occasionally repeats a sentence verbatim; collapse it before anything is released.
+        const joined = finalSentences.join("");
+        const collapsed = collapseRepeatedSentences(joined);
+        if (collapsed !== joined) {
+          trace.mark("guardrail", "repeated_sentence_removed", {});
+          finalSentences = [collapsed];
+        }
         if (deps.finalChecker && finalSentences.join("").trim()) {
           finalSentences = await guarded(() => groundFinal(finalSentences.join("")));
         }
