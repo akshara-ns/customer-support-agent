@@ -66,6 +66,7 @@ export const GUARDRAILS = {
 } as const;
 
 /** Abuse and cost limits for public endpoints (lib/ratelimit.ts). */
+/** Per-IP limits are the main protection; the shared daily caps were raised for the review window (DECISIONS D76). */
 export const RATE_LIMITS = {
   /** Every /api/rag/search call (each costs an embedding + a vector query). */
   ragSearch: [
@@ -74,15 +75,15 @@ export const RATE_LIMITS = {
   ],
   ragAnswer: [
     { bucket: "rag_answer:ip", scope: "ip", limit: 10, windowSec: 600 },
-    { bucket: "rag_answer:daily", scope: "global", limit: 200, windowSec: 86_400 },
+    { bucket: "rag_answer:daily", scope: "global", limit: 1000, windowSec: 86_400 },
   ],
   chat: [
     { bucket: "chat:ip", scope: "ip", limit: 30, windowSec: 600 },
-    { bucket: "chat:daily", scope: "global", limit: 600, windowSec: 86_400 },
+    { bucket: "chat:daily", scope: "global", limit: 1500, windowSec: 86_400 },
   ],
   voiceSession: [
     { bucket: "voice_session:ip", scope: "ip", limit: 6, windowSec: 600 },
-    { bucket: "voice_session:daily", scope: "global", limit: 60, windowSec: 86_400 },
+    { bucket: "voice_session:daily", scope: "global", limit: 150, windowSec: 86_400 },
   ],
   voiceTool: [
     { bucket: "voice_tool:ip", scope: "ip", limit: 60, windowSec: 600 },

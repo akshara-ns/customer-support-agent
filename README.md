@@ -289,7 +289,7 @@ HIGH's point estimate is higher than MEDIUM's (95% vs 70%), but the intervals ov
 
 ## Known limitations
 
-- **Voice limits aren't server-enforced.** The browser does the SDP exchange with an ephemeral key, so the server never learns the call id and can't end the call. A modified client could change session settings, stay past 3 minutes or under-report usage. Held server-side: 60 s keys, 6 voice sessions per IP per 10 min and 60 per day, output-token caps at minting, every tool call through `/api/voice/tool` with policy in code, rate-limited transcript and usage posts. Fix: move the SDP exchange to the server (DECISIONS D55).
+- **Voice limits aren't server-enforced.** The browser does the SDP exchange with an ephemeral key, so the server never learns the call id and can't end the call. A modified client could change session settings, stay past 3 minutes or under-report usage. Held server-side: 60 s keys, 6 voice sessions per IP per 10 min and 150 per day, output-token caps at minting, every tool call through `/api/voice/tool` with policy in code, rate-limited transcript and usage posts. Fix: move the SDP exchange to the server (DECISIONS D55).
 - **Voice checks** were run with synthetic speech played into the microphone track; the network-drop test was simulated.
 - **"Ask which invoice"** applies in chat only; in voice, transcripts can arrive after the tool call, so voice only checks mismatches against transcripts logged so far.
 - **Interrupted answers:** when the server doesn't confirm truncation, the heard portion is estimated (~15 characters per second).

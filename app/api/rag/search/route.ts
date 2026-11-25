@@ -12,7 +12,7 @@ import { TIERS } from "@/lib/types";
  *   GET /api/rag/search?q=...&answer=1   full pipeline: cited answer + grounding check
  * Public callers see only sections that apply to every tier, and no traces or drafts. Tier filtering
  * (&tier=pro) and full traces need the admin key (x-admin-key header = ADMIN_KEY).
- * Every call is rate limited (30 per IP per 10 min, 1,000 per day); answer=1 also 10 per IP per 10 min, 200 per day.
+ * Every call is rate limited (30 per IP per 10 min, 1,000 per day); answer=1 also 10 per IP per 10 min, 1,000 per day.
  */
 const Query = z.object({
   q: z.string().trim().min(1).max(500),
