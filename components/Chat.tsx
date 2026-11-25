@@ -2,6 +2,7 @@
 
 
 import { useEffect, useRef, useState } from "react";
+import { FILL_CHAT_EVENT } from "@/components/tryPrompts";
 import { useChat, type ChatMessage, type Step } from "@/components/useChat";
 import { VoiceBar } from "@/components/voice/VoiceBar";
 import { VoiceDebugPanel } from "@/components/voice/VoiceDebugPanel";
@@ -96,6 +97,17 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
   const voiceActive = voice.state === "live" || voice.state === "connecting" || voice.state === "reconnecting";
   const [draft, setDraft] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // "Try this" panel: a clicked example prompt fills the input (the reviewer still presses Send).
+  useEffect(() => {
+    const fill = (e: Event) => {
+      setDraft((e as CustomEvent<string>).detail);
+      inputRef.current?.focus();
+    };
+    window.addEventListener(FILL_CHAT_EVENT, fill);
+    return () => window.removeEventListener(FILL_CHAT_EVENT, fill);
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -227,6 +239,7 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
         }}
       >
         <input
+          ref={inputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={voiceActive ? "Voice is on: speak, or end voice to type" : busy ? "Working…" : "Type a message"}
