@@ -8,7 +8,6 @@ A full-stack support agent for a fictional SaaS, **Fernway Workspace**. It answe
 |---|---|
 | **Live demo** | https://customer-support-agent-sable-two.vercel.app (voice debugging: `/voice-debug`) |
 | **Demo account** | `omar@example.com`, PIN `715204` (Pro tier). All demo accounts are listed on the page; they are fictional, and PINs are shown on purpose. Demo data resets daily |
-| **Loom walkthrough** | _link added after recording_ |
 | **Stack** | Next.js (App Router, TypeScript) on Vercel · Neon Postgres + pgvector · OpenAI (`gpt-5.4-mini` agent, `gpt-5.4-nano` checks, embeddings, Realtime voice) |
 | **Tests** | 214 tests (unit, scripted-model scenarios, architecture), CI on every push |
 
@@ -27,7 +26,7 @@ A full-stack support agent for a fictional SaaS, **Fernway Workspace**. It answe
 | **Live tool status in the UI** | `step_started` / `step_completed` events in chat; the same steps, plus a spoken "Let me check that…", in voice | Chat and voice UIs |
 | **Error recovery** | Retries with backoff, typed fallbacks per failure, a 40 s turn deadline, stream resume, and a failure-simulation control | [Resilience](#resilience-observability-and-security) |
 | **Session state across text and voice** | One append-only session log shared by both modes: verify in chat, continue by voice, or the reverse | `lib/session` |
-| **Deliverables** | Repo with `.env.example` · this README · live demo · Loom | above |
+| **Deliverables** | Repo with `.env.example` · this README · live demo | above |
 
 ## Architecture
 
