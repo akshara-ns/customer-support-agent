@@ -7,7 +7,7 @@ import { demoUsers } from "@/lib/server/deps";
 export default function Home() {
   return (
     <main className="layout">
-      <Chat />
+      <Chat accounts={demoUsers()} />
       <div className="side">
         <TryThis />
         <DemoUsers users={demoUsers()} />

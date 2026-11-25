@@ -3,12 +3,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FILL_CHAT_EVENT } from "@/components/tryPrompts";
+import { accountStatus, CONVERSATION_RESET_EVENT, MESSAGE_SENT_EVENT, statusLabel } from "@/components/chatUi";
 import { useChat, type ChatMessage, type Step } from "@/components/useChat";
 import { VoiceBar } from "@/components/voice/VoiceBar";
 import { VoiceDebugPanel } from "@/components/voice/VoiceDebugPanel";
 import { useVoice } from "@/components/voice/useVoice";
-import { TraceDrawer } from "@/components/TraceDrawer";
-import { escalationReasonText, type ClientFault } from "@/lib/contracts";
+import { FAULT_OPTIONS, TraceDrawer } from "@/components/TraceDrawer";
+import { escalationReasonText, type ClientFault, type DemoUser } from "@/lib/contracts";
 
 /** A distinct, friendly state per failure type, with the actions that make sense for it. */
 function errorCopy(code: string, tool?: string): { text: string; actions: ("retry" | "refund_again" | "ticket")[] } {
@@ -77,7 +78,19 @@ function EscalationCard({ m, onCreate }: { m: ChatMessage; onCreate: () => void 
   );
 }
 
-export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
+const MicIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+  </svg>
+);
+const ChartIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </svg>
+);
+
+export function Chat({ voiceDebug = false, accounts = [] }: { voiceDebug?: boolean; accounts?: DemoUser[] }) {
   const { sessionId, messages, busy, send, retry, reset, upsert, turnVersion } = useChat();
   const [fault, setFault] = useState<ClientFault | "">("");
   const faultRef = useRef<ClientFault | "">("");
@@ -118,34 +131,47 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
     if (!text) return;
     setDraft("");
     void send(text, takeFault());
+    window.dispatchEvent(new CustomEvent<string>(MESSAGE_SENT_EVENT, { detail: text }));
   };
+  const status = accountStatus(messages, accounts);
+  const armedFault = FAULT_OPTIONS.find((o) => o.value === fault && o.value !== "");
 
   return (
     <>
     <section className="chat" aria-label="Support chat">
       <header className="chat-header">
-        <div>
+        <div className="title-block">
           <h1>Fernway Support</h1>
-          <p className="muted small">
-            Session <code>{sessionId ? sessionId.slice(0, 8) : "…"}</code>
-          </p>
+          <span className={`status-chip ${status.verified ? "status-verified" : "status-unverified"}`} role="status">
+            {statusLabel(status)}
+          </span>
         </div>
         <div className="header-actions">
           <button
             type="button"
-            className={voiceOpen ? "" : "secondary"}
+            className={`icon-btn${voiceOpen ? " voice-on" : ""}`}
             onClick={() => {
               if (voiceActive) voice.stop();
               setVoiceOpen((v) => !v);
             }}
             aria-pressed={voiceOpen}
           >
+            <MicIcon />
             {voiceOpen ? "Voice on" : "Voice"}
           </button>
-          <button type="button" className={drawerOpen ? "" : "secondary"} onClick={() => setDrawerOpen((o) => !o)} aria-pressed={drawerOpen}>
-            Trace{fault ? " ⚠" : ""}
+          <button type="button" className={`icon-btn ${drawerOpen ? "" : "secondary"}`} onClick={() => setDrawerOpen((o) => !o)} aria-pressed={drawerOpen}>
+            <ChartIcon />
+            Trace &amp; metrics{fault ? " ⚠" : ""}
           </button>
-          <button type="button" className="secondary" onClick={reset} disabled={busy || voiceActive}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              reset();
+              window.dispatchEvent(new Event(CONVERSATION_RESET_EVENT));
+            }}
+            disabled={busy || voiceActive}
+          >
             New conversation
           </button>
         </div>
@@ -155,9 +181,26 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
 
       <div className="messages" aria-live="polite">
         {messages.length === 0 && (
-          <p className="empty muted">
-            Ask about plans, refunds or troubleshooting. To act on an account, give the email and support PIN of a demo user.
-          </p>
+          <div className="empty">
+            <p className="empty-title">Hi, I&apos;m the Fernway support assistant.</p>
+            <ul className="empty-list muted small">
+              <li>
+                <strong>Plans &amp; policies:</strong> limits, refund windows, what each tier includes
+              </li>
+              <li>
+                <strong>Refunds:</strong> verified, checked against your plan&apos;s policy in code
+              </li>
+              <li>
+                <strong>Troubleshooting:</strong> sign-in, sync, integrations
+              </li>
+            </ul>
+            {!voiceDebug && (
+              <p className="small">
+                New here? Try the prompts <span className="hint-wide">on the right →</span>
+                <span className="hint-narrow">below ↓</span>
+              </p>
+            )}
+          </div>
         )}
         {messages
           .filter((m) => m.channel !== "voice" || m.text || m.steps.length || m.escalation || m.streaming)
@@ -231,6 +274,14 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
         <div ref={endRef} />
       </div>
 
+      {armedFault && (
+        <div className="fault-banner small" role="status">
+          Next message will simulate: <strong>{armedFault.label}</strong> ·{" "}
+          <button type="button" className="link" onClick={() => chooseFault("")}>
+            Cancel
+          </button>
+        </div>
+      )}
       <form
         className="composer"
         onSubmit={(e) => {
@@ -242,7 +293,7 @@ export function Chat({ voiceDebug = false }: { voiceDebug?: boolean }) {
           ref={inputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={voiceActive ? "Voice is on: speak, or end voice to type" : busy ? "Working…" : "Type a message"}
+          placeholder={voiceActive ? "Voice is on: speak, or end voice to type" : busy ? "Working…" : "Ask about plans, refunds, troubleshooting… or press Voice to talk."}
           disabled={busy || !sessionId || voiceActive}
           maxLength={2000}
           aria-label="Message"

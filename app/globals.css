@@ -92,9 +92,18 @@ main.layout {
   padding: 24px;
   align-items: start;
 }
+/* Chat stays full-height and fixed; the right column scrolls on its own. */
+main.layout > .chat { position: sticky; top: 24px; }
+main.layout > .side { max-height: calc(100vh - 48px); overflow-y: auto; padding-right: 4px; }
 @media (max-width: 860px) {
-  main.layout { grid-template-columns: 1fr; }
+  main.layout { grid-template-columns: 1fr; padding: 12px; gap: 16px; }
+  main.layout > .chat { position: static; height: 80vh; }
+  main.layout > .side { max-height: none; overflow: visible; }
+  main.layout .chat-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  main.layout .header-actions { justify-content: flex-start; }
+  .hint-wide { display: none; }
 }
+@media (min-width: 861px) { .hint-narrow { display: none; } }
 .small { font-size: 13px; }
 code { font-family: var(--font-geist-mono), monospace; }
 button {
@@ -273,3 +282,31 @@ main.layout-single { grid-template-columns: minmax(0, 1fr); max-width: 980px; }
 .span-err .span-bar span { background: #dc2626; }
 .span-ms { font-family: var(--font-geist-mono), monospace; font-size: 11px; text-align: right; opacity: 0.8; }
 .span-detail { font-size: 11px; padding: 4px 8px 6px 24px; display: flex; flex-direction: column; gap: 4px; }
+
+/* ---- header, empty state, banners (UI polish) ---- */
+.title-block { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.status-chip { font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; }
+.status-unverified { color: color-mix(in srgb, var(--foreground) 60%, transparent); }
+.status-verified { color: #16a34a; background: color-mix(in srgb, #16a34a 10%, transparent); }
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.chat-header h1 { white-space: nowrap; }
+.chat-header { gap: 12px; }
+.icon-btn { display: inline-flex; align-items: center; gap: 6px; }
+.icon-btn.voice-on { background: #16a34a; }
+.empty .empty-title { font-weight: 600; margin-bottom: 8px; }
+.empty-list { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 0 0 12px; text-align: left; }
+.fault-banner { display: flex; align-items: center; gap: 6px; padding: 6px 18px; background: color-mix(in srgb, #f59e0b 14%, transparent); border-top: 1px solid color-mix(in srgb, #f59e0b 40%, transparent); }
+.fault-banner button.link { color: inherit; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Try this: numbered steps, ✓ when sent */
+.try-prompt { flex-direction: row; align-items: flex-start; gap: 8px; }
+.try-body { display: flex; flex-direction: column; gap: 2px; }
+.try-step { flex: none; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; border: 1px solid color-mix(in srgb, #2563eb 60%, transparent); color: #2563eb; margin-top: 1px; }
+.try-done .try-step { background: #16a34a; border-color: #16a34a; color: #fff; }
+/* Drawer stat cards */
+.stat-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-card { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); background: color-mix(in srgb, var(--foreground) 3%, transparent); }
+.stat-label { font-size: 11px; color: color-mix(in srgb, var(--foreground) 60%, transparent); }
+.stat-value { font-family: var(--font-geist-mono), monospace; font-size: 13px; font-weight: 600; }
+.stat-hint { font-size: 11px; color: color-mix(in srgb, var(--foreground) 55%, transparent); }
+.demo-users li > .small-btn { margin-top: 6px; }
