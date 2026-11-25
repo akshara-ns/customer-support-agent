@@ -9,7 +9,7 @@ A full-stack support agent for a fictional SaaS, **Fernway Workspace**. It answe
 | **Live demo** | https://customer-support-agent-sable-two.vercel.app (voice debugging: `/voice-debug`) |
 | **Demo account** | `omar@example.com`, PIN `715204` (Pro tier). All demo accounts are listed on the page; they are fictional, and PINs are shown on purpose. Demo data resets daily |
 | **Stack** | Next.js (App Router, TypeScript) on Vercel · Neon Postgres + pgvector · OpenAI (`gpt-5.4-mini` agent, `gpt-5.4-nano` checks, embeddings, Realtime voice) |
-| **Tests** | 214 tests (unit, scripted-model scenarios, architecture), CI on every push |
+| **Tests** | 222 tests (unit, scripted-model scenarios, architecture), CI on every push |
 
 **Evidence and its limits: [docs/EVIDENCE.md](docs/EVIDENCE.md)** (intervals, harder set, confidence validation, labelling, what breaks at 100× traffic) · design decisions: [docs/DECISIONS.md](docs/DECISIONS.md) · review findings: [docs/REVIEW.md](docs/REVIEW.md)
 
