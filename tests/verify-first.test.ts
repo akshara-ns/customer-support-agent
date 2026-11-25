@@ -80,7 +80,8 @@ describe("agent turn with needs_verification", () => {
 
 describe("unverified questions about the customer's own plan (generic wording)", () => {
   it("asks to verify even when the best match applies to every tier", async () => {
-    for (const q of ["What's my refund limit?", "How long do I have to request a refund?", "What does my plan include?"]) {
+    // The agent rewrites the question before get_policy, often in the third person ("the customer's plan").
+    for (const q of ["What's my refund limit?", "How long do I have to request a refund?", "What does my plan include?", "What is the refund limit for the customer's plan?", "What does their plan include?", "What is your refund window?"]) {
       const r = await policySearchWith(pipeline(true, ["free", "pro", "enterprise"])).search(q, null);
       expect(r.status, q).toBe("needs_verification");
     }

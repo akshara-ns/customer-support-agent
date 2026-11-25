@@ -13,10 +13,11 @@ const round = (x: number) => Math.round(x * 1000) / 1000;
 
 /**
  * The customer asks about their own plan or account ("What's my refund limit?", "How long do I have
- * to request a refund?", "What does my plan include?"): the answer depends on their tier.
+ * to request a refund?", "What does my plan include?"): the answer depends on their tier. The agent
+ * rewrites the question for get_policy, often in the third person ("the customer's plan", "their plan").
  */
 export const OWN_PLAN =
-  /\b(my|our|i|we)\b[^.?!]*\b(plan|tier|subscription|account|workspace|limit|limits|refunds?|window|invoices?|billing|seats?|storage|members?|integrations?|version history|support|sso|include|includes)\b/i;
+  /\b(my|our|i|we|your|their|the customer['’]?s?|customer['’]s)\b[^.?!]*\b(plan|tier|subscription|account|workspace|limit|limits|refunds?|window|invoices?|billing|seats?|storage|members?|integrations?|version history|support|sso|include|includes)\b/i;
 
 export function policySearchWith(answer: typeof Pipeline): PolicySearch {
   return {
