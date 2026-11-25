@@ -1,16 +1,13 @@
 /**
- * Resets demo state: deletes refunds (actions ledger) and escalation tickets for the demo
- * accounts, plus tickets opened before verification (customer_id NULL). Customers and invoices
- * come from data/mock_users.json, so they need no reset. Session logs are append-only and kept.
- *
- * Runs from a developer machine with DATABASE_URL (no HTTP endpoint, so nothing public).
+ * Resets demo state from a developer machine (DATABASE_URL): refunds and tickets for the demo
+ * accounts. Same logic as the daily cron route (lib/db/demo-reset.ts), which only Vercel's cron can call.
  * Usage: npm run demo:reset           (asks for confirmation)
  *        npm run demo:reset -- --yes  (no prompt)
  */
 import { config } from "dotenv";
 import { createInterface } from "node:readline/promises";
 import { neon } from "@neondatabase/serverless";
-import raw from "../data/mock_users.json";
+import { DEMO_CUSTOMER_IDS, DEMO_INVOICE_COUNT, resetDemoData } from "../lib/db/demo-reset";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
@@ -18,7 +15,6 @@ config({ quiet: true });
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
-  const ids = raw.users.map((u) => u.customer_id);
   const host = new URL(url).host;
 
   if (!process.argv.includes("--yes")) {
@@ -31,14 +27,10 @@ async function main(): Promise<void> {
     }
   }
 
-  const sql = neon(url);
-  const [actions, tickets] = await sql.transaction((tx) => [
-    tx`DELETE FROM actions WHERE customer_id = ANY(${ids}) RETURNING id`,
-    tx`DELETE FROM tickets WHERE customer_id = ANY(${ids}) OR customer_id IS NULL RETURNING ticket_number`,
-  ]);
+  const { ledgerEntries, tickets } = await resetDemoData(neon(url));
   console.log(`database:  ${host}`);
-  console.log(`deleted:   ${actions.length} ledger entries, ${tickets.length} tickets`);
-  console.log(`customers: ${ids.length} demo accounts, ${raw.users.reduce((n, u) => n + u.invoices.length, 0)} invoices (from data/mock_users.json)`);
+  console.log(`deleted:   ${ledgerEntries} ledger entries, ${tickets} tickets`);
+  console.log(`customers: ${DEMO_CUSTOMER_IDS.length} demo accounts, ${DEMO_INVOICE_COUNT} invoices (from data/mock_users.json)`);
 }
 
 main().catch((err: unknown) => {

@@ -10,6 +10,8 @@ const schema = z.object({
   OPENAI_API_KEY: z.string().min(1).optional(),
   /** Unlocks tier filtering and full traces on /api/rag/search (header x-admin-key). Optional. */
   ADMIN_KEY: z.string().min(16).optional(),
+  /** Vercel sends it as `Authorization: Bearer …` on cron calls (/api/cron/demo-reset). Optional locally. */
+  CRON_SECRET: z.string().min(16).optional(),
 });
 
 export type ServerEnv = z.infer<typeof schema>;
