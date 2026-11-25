@@ -1,44 +1,27 @@
 "use client";
 
 import type { useVoice } from "@/components/voice/useVoice";
+import { voiceStatusLabel, voiceTimer } from "@/components/voice/voiceLabels";
 import { Waveform } from "@/components/voice/Waveform";
 
 type Voice = ReturnType<typeof useVoice>;
-
-const LABELS: Record<Voice["state"], string> = {
-  idle: "Voice off",
-  connecting: "Connecting…",
-  live: "Live",
-  reconnecting: "Reconnecting…",
-  ended: "Ended",
-  error: "Error",
-};
-
-const ACTIVITY: Record<Voice["activity"], string> = {
-  listening: "Listening",
-  thinking: "Thinking…",
-  speaking: "Speaking",
-};
-
-const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 export function VoiceBar({ voice, allowClips = false }: { voice: Voice; allowClips?: boolean }) {
   const active = voice.state === "live" || voice.state === "connecting" || voice.state === "reconnecting";
   return (
     <div className={`voice-bar voice-${voice.state}`} role="region" aria-label="Voice mode">
       <div className="voice-row">
-        <span className={`pill pill-${voice.state}`}>{LABELS[voice.state]}</span>
-        {voice.state === "live" && (
+        {voice.state === "live" ? (
           <span className={`activity activity-${voice.activity}`} role="status" aria-live="polite">
             <span className="activity-dot" aria-hidden="true" />
-            {ACTIVITY[voice.activity]}
+            {voiceStatusLabel(voice.state, voice.activity)}
+          </span>
+        ) : (
+          <span className={`pill pill-${voice.state}`} role="status" aria-live="polite">
+            {voiceStatusLabel(voice.state, voice.activity)}
           </span>
         )}
-        {voice.state === "live" && (
-          <span className="mono small">
-            {mmss(voice.elapsed)} / {mmss(voice.maxSeconds)}
-          </span>
-        )}
+        {voice.state === "live" && <span className="mono small">{voiceTimer(voice.elapsed, voice.maxSeconds)}</span>}
         <span className="spacer" />
         {!active && (
           <>

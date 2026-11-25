@@ -6,6 +6,7 @@ import { FILL_CHAT_EVENT } from "@/components/tryPrompts";
 import { accountStatus, CONVERSATION_RESET_EVENT, MESSAGE_SENT_EVENT, statusLabel } from "@/components/chatUi";
 import { useChat, type ChatMessage, type Step } from "@/components/useChat";
 import { VoiceBar } from "@/components/voice/VoiceBar";
+import { voiceButtonLabel } from "@/components/voice/voiceLabels";
 import { VoiceDebugPanel } from "@/components/voice/VoiceDebugPanel";
 import { useVoice } from "@/components/voice/useVoice";
 import { FAULT_OPTIONS, TraceDrawer } from "@/components/TraceDrawer";
@@ -149,7 +150,7 @@ export function Chat({ voiceDebug = false, accounts = [] }: { voiceDebug?: boole
         <div className="header-actions">
           <button
             type="button"
-            className={`icon-btn${voiceOpen ? " voice-on" : ""}`}
+            className={`icon-btn${voiceActive ? " voice-on" : voiceOpen ? " secondary" : ""}`}
             onClick={() => {
               if (voiceActive) voice.stop();
               setVoiceOpen((v) => !v);
@@ -157,7 +158,7 @@ export function Chat({ voiceDebug = false, accounts = [] }: { voiceDebug?: boole
             aria-pressed={voiceOpen}
           >
             <MicIcon />
-            {voiceOpen ? "Voice on" : "Voice"}
+            {voiceButtonLabel(voiceOpen)}
           </button>
           <button type="button" className={`icon-btn ${drawerOpen ? "" : "secondary"}`} onClick={() => setDrawerOpen((o) => !o)} aria-pressed={drawerOpen}>
             <ChartIcon />
