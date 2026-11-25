@@ -1,3 +1,7 @@
+"use client";
+
+import { verifyMessage } from "@/components/chatUi";
+import { fillChatInput } from "@/components/tryPrompts";
 import type { DemoUser } from "@/lib/contracts";
 
 /** Fake accounts reviewers can use; PINs are shown on purpose. */
@@ -18,6 +22,9 @@ export function DemoUsers({ users }: { users: DemoUser[] }) {
               {u.email} · PIN {u.pin}
             </code>
             <p className="muted small">Try: {u.tryThis}</p>
+            <button type="button" className="secondary small-btn" onClick={() => fillChatInput(verifyMessage(u))}>
+              Use this account
+            </button>
           </li>
         ))}
       </ul>

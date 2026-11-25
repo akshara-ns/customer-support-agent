@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { CONVERSATION_RESET_EVENT, MESSAGE_SENT_EVENT } from "@/components/chatUi";
 import { fillChatInput, TRY_PROMPTS } from "@/components/tryPrompts";
 
 const DISMISSED_KEY = "fernway.tryThisDismissed";
@@ -24,6 +25,21 @@ const setDismissed = (dismissed: boolean) => {
 export function TryThis() {
   // Shown on the server render; hidden on the client if the reviewer dismissed it before.
   const dismissed = useSyncExternalStore(subscribe, () => localStorage.getItem(DISMISSED_KEY) === "1", () => false);
+  // ✓ on prompts sent in this conversation (local state; cleared by "New conversation").
+  const [sent, setSent] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    const onSent = (e: Event) => {
+      const text = (e as CustomEvent<string>).detail.trim();
+      setSent((s) => new Set(s).add(text));
+    };
+    const onReset = () => setSent(new Set());
+    window.addEventListener(MESSAGE_SENT_EVENT, onSent);
+    window.addEventListener(CONVERSATION_RESET_EVENT, onReset);
+    return () => {
+      window.removeEventListener(MESSAGE_SENT_EVENT, onSent);
+      window.removeEventListener(CONVERSATION_RESET_EVENT, onReset);
+    };
+  }, []);
   if (dismissed) {
     return (
       <button type="button" className="secondary small try-reopen" onClick={() => setDismissed(false)}>
@@ -47,24 +63,35 @@ export function TryThis() {
       </div>
       <p className="muted small">Click a prompt to put it in the chat box, then press Send. In order:</p>
       <ol className="try-list">
-        {TRY_PROMPTS.map((p) => (
-          <li key={p.label}>
-            <button type="button" className="try-prompt" onClick={() => fillChatInput(p.text)}>
-              <span className="small muted">{p.label}</span>
-              <span>{p.text}</span>
-            </button>
-          </li>
-        ))}
+        {TRY_PROMPTS.map((p, i) => {
+          const done = sent.has(p.text);
+          return (
+            <li key={p.label}>
+              <button type="button" className={`try-prompt${done ? " try-done" : ""}`} onClick={() => fillChatInput(p.text)}>
+                <span className="try-step" aria-hidden="true">
+                  {done ? "✓" : i + 1}
+                </span>
+                <span className="try-body">
+                  <span className="small muted">
+                    {p.label}
+                    {done && <span className="sr-only"> (sent)</span>}
+                  </span>
+                  <span>{p.text}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ol>
       <ul className="muted small try-notes">
         <li>
           <strong>Voice:</strong> press <em>Voice</em>, ask a question, and interrupt the answer mid-sentence.
         </li>
         <li>
-          <strong>Failure simulation:</strong> open <em>Trace</em>, pick a fault (e.g. LLM 429), then send a message.
+          <strong>Failure simulation:</strong> open <em>Trace &amp; metrics</em>, pick a fault (e.g. LLM 429), then send a message.
         </li>
         <li>
-          <strong>Observability:</strong> <em>Trace</em> shows each turn&apos;s spans, latency, tokens and estimated cost.
+          <strong>Observability:</strong> <em>Trace &amp; metrics</em> shows each turn&apos;s spans, latency, tokens and estimated cost.
         </li>
         <li>Refunds change shared demo data; it resets daily.</li>
       </ul>
