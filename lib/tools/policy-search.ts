@@ -11,6 +11,13 @@ import { TIERS } from "@/lib/types";
 
 const round = (x: number) => Math.round(x * 1000) / 1000;
 
+/**
+ * The customer asks about their own plan or account ("What's my refund limit?", "How long do I have
+ * to request a refund?", "What does my plan include?"): the answer depends on their tier.
+ */
+export const OWN_PLAN =
+  /\b(my|our|i|we)\b[^.?!]*\b(plan|tier|subscription|account|workspace|limit|limits|refunds?|window|invoices?|billing|seats?|storage|members?|integrations?|version history|support|sso|include|includes)\b/i;
+
 export function policySearchWith(answer: typeof Pipeline): PolicySearch {
   return {
     async search(question, tier, trace) {
@@ -34,10 +41,12 @@ export function policySearchWith(answer: typeof Pipeline): PolicySearch {
         confidence: round(r.decision.confidence),
       };
       if (tier !== null) return escalation;
-      // Unverified: is this answered by a tier-specific section? Retrieval only, no LLM call.
+      // Unverified: does the answer depend on their tier? Retrieval only, no LLM call. Yes if the cross-tier
+      // search is relevant (passes the threshold) and either its best match is tier-specific or the
+      // question is about their own plan. Off-topic questions fail the threshold and still escalate.
       const all = await answer({ query: question, generate: false }, trace);
       const top = all.retrieval.chunks[0];
-      if (!all.decision.escalate && top && top.tiers.length < TIERS.length) {
+      if (!all.decision.escalate && top && (top.tiers.length < TIERS.length || OWN_PLAN.test(question))) {
         return {
           status: "needs_verification",
           reason: "tier_specific",

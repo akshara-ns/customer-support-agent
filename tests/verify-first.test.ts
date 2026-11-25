@@ -77,3 +77,25 @@ describe("agent turn with needs_verification", () => {
     expect(JSON.stringify(result)).toContain("support PIN");
   });
 });
+
+describe("unverified questions about the customer's own plan (generic wording)", () => {
+  it("asks to verify even when the best match applies to every tier", async () => {
+    for (const q of ["What's my refund limit?", "How long do I have to request a refund?", "What does my plan include?"]) {
+      const r = await policySearchWith(pipeline(true, ["free", "pro", "enterprise"])).search(q, null);
+      expect(r.status, q).toBe("needs_verification");
+    }
+  });
+
+  it("still escalates off-topic questions, possessive or not, when nothing relevant is retrieved", async () => {
+    for (const q of ["Can you recommend a good stock to buy?", "What's my favourite stock right now?"]) {
+      const r = await policySearchWith(pipeline(false, ["free", "pro", "enterprise"])).search(q, null);
+      expect(r.status, q).toBe("needs_escalation");
+    }
+  });
+
+  it("a general how-to question with an every-tier answer still escalates when the general search did", async () => {
+    const r = await policySearchWith(pipeline(true, ["free", "pro", "enterprise"])).search("How does data export work?", null);
+    expect(r.status).toBe("needs_escalation");
+  });
+});
+
