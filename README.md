@@ -174,7 +174,9 @@ flowchart TD
 
 **Labelling:** one rule for every set (`evals/LABELING.md`): a query that only demands an approval ("approve my $900 refund") should escalate. This rule was adopted after the first results were seen; `evals/RESULTS.md` reports results under both the original and the current rule. Under the original labels the blind 40 give false escalations 3/21 (CI 3–36%) and missed escalations 0/19 (CI 0–18%).
 
-**Confidence level vs answer correctness** (`evals/CONFIDENCE.md`; answers labelled against the cited documents by the coding assistant, see limitations):
+**Confidence level vs answer correctness** (`evals/CONFIDENCE.md`):
+
+Answer correctness was labelled by the coding assistant against the cited documents. A separate AI annotator re-labelled a random 10 blind: its factual verdicts matched all 10 once the customer's tier was supplied; one item differs only under the approval-demand labelling rule. Both annotators are AI, so this is a consistency check, not human validation (`evals/BLIND_RELABEL.md`).
 
 | Level | Blind 40 | Harder 18 | Pooled |
 |---|---|---|---|
@@ -330,6 +332,6 @@ npm run dev                       # http://localhost:3000
 | `GET /api/rag/search?q=…` | Retrieval inspector: public = general sections, no traces; with `x-admin-key`, tier filter and full trace |
 
 ## Evidence and design records
-- `evals/`: `RESULTS.md` (guardrail sweep, held-out sets, intervals), `HARDER_SET.md`, `CONFIDENCE.md`, `LABELING.md`, `ACTION_CLAIMS.md`, `AGENT_RESULTS.md`, `VOICE_CHECKS.md`, `RESILIENCE_CHECKS.md`
+- `evals/`: `RESULTS.md` (guardrail sweep, held-out sets, intervals), `HARDER_SET.md`, `CONFIDENCE.md`, `LABELING.md`, `BLIND_RELABEL.md`, `ACTION_CLAIMS.md`, `AGENT_RESULTS.md`, `VOICE_CHECKS.md`, `RESILIENCE_CHECKS.md`
 - `docs/DECISIONS.md`: every design decision with its reason and the rejected alternative
 - `docs/REVIEW.md`: independent review findings and how each was resolved
