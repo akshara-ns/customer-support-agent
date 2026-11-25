@@ -15,6 +15,16 @@ export const FAULT_OPTIONS: { value: ClientFault | ""; label: string }[] = [
   { value: "stream_drop", label: "Chat stream drops mid-turn (client resumes)" },
 ];
 
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="stat-card">
+      <span className="stat-label">{label}</span>
+      <span className="stat-value">{value}</span>
+      {hint && <span className="stat-hint">{hint}</span>}
+    </div>
+  );
+}
+
 const ms = (v: number | null | undefined) => (v === null || v === undefined ? "–" : v >= 1000 ? `${(v / 1000).toFixed(2)}s` : `${v}ms`);
 const usd = (v: number) => `$${v.toFixed(v < 0.01 ? 5 : 4)}`;
 
@@ -173,7 +183,10 @@ export function TraceDrawer({
   return (
     <aside className="drawer" aria-label="Observability drawer">
       <header className="drawer-head">
-        <strong>Observability</strong>
+        <strong>Trace &amp; metrics</strong>
+        <span className="muted small">
+          session <code>{sessionId ? sessionId.slice(0, 8) : "…"}</code>
+        </span>
         <span className="spacer" />
         <button type="button" className="secondary small-btn" onClick={() => void load()}>
           Refresh
@@ -199,28 +212,16 @@ export function TraceDrawer({
       {error && <p className="small error-text">{error}</p>}
       {s && report && (
         <section className="drawer-section small">
-          <div className="stats">
-            <div>
-              <span className="muted">turns</span> {s.turns}
-            </div>
-            <div>
-              <span className="muted">chat turn p50/p95</span> {ms(s.chatTurnMs.p50)} / {ms(s.chatTurnMs.p95)}
-            </div>
-            <div>
-              <span className="muted">TTFT p50/p95</span> {ms(s.ttftMs.p50)} / {ms(s.ttftMs.p95)}
-            </div>
-            <div>
-              <span className="muted">voice response p50/p95</span> {ms(s.voiceResponseMs.p50)} / {ms(s.voiceResponseMs.p95)}
-            </div>
-            <div>
-              <span className="muted">tokens in/out/cached</span> {s.tokens.in} / {s.tokens.out} / {s.tokens.cached}
-            </div>
-            <div>
-              <span className="muted">est. cost</span> {usd(s.costUsd.total)} (chat {usd(s.costUsd.chat)}, voice {usd(s.costUsd.voice)})
-            </div>
+          <div className="stat-cards">
+            <Stat label="Turns" value={String(s.turns)} />
+            <Stat label="Chat turn p50 / p95" value={`${ms(s.chatTurnMs.p50)} / ${ms(s.chatTurnMs.p95)}`} />
+            <Stat label="First token p50 / p95" value={`${ms(s.ttftMs.p50)} / ${ms(s.ttftMs.p95)}`} />
+            <Stat label="Voice response p50 / p95" value={`${ms(s.voiceResponseMs.p50)} / ${ms(s.voiceResponseMs.p95)}`} />
+            <Stat label="Tokens in / out / cached" value={`${s.tokens.in} / ${s.tokens.out} / ${s.tokens.cached}`} />
+            <Stat label="Estimated cost" value={usd(s.costUsd.total)} hint={`chat ${usd(s.costUsd.chat)} · voice ${usd(s.costUsd.voice)}`} />
           </div>
           <p className="muted">
-            Estimated cost: {report.pricing.note} Prices checked {report.pricing.checked}; source: {report.pricing.source}.
+            Cost is estimated: {report.pricing.note.replace(/^Estimated:\s*/i, "")} Prices checked {report.pricing.checked}; source: {report.pricing.source}.
           </p>
           <details>
             <summary>System prompt (sent first on every chat call)</summary>
